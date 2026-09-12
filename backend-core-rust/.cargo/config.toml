@@ -1,0 +1,6 @@
+[registries.crates-io]
+protocol = "sparse"
+
+[http]
+proxy = "socks5h://127.0.0.1:1080"
+check-revoke = false

@@ -1,0 +1,53 @@
+# ==============================================================================
+# Git Ignore Rules for WhiteCat Trading Bot (白猫打狗机器人)
+# ==============================================================================
+
+# 1. 敏感信息与环境变量 (CRITICAL: 严防泄露私钥与 Bot Token)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.priv
+id_rsa*
+
+# 2. 运行时用户数据与交易状态 (包含测试钱包私钥与流水)
+data/*.json
+bot-gateway-ts/data/*.json
+!bot-gateway-ts/data/.gitkeep
+
+# 3. 依赖文件
+node_modules/
+target/
+vendor/
+
+# 4. 编译与构建产物
+dist/
+bot-gateway-ts/dist/
+build/
+*.tsbuildinfo
+
+# 5. 日志与临时调试文件
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 6. 系统与 IDE 缓存
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 7. 测试与覆盖率报告
+coverage/
+.nyc_output/
+
+# 8. 预编译二进制程序
+sentry-detector-go/whitecat-sentry-detector
+*.exe
+*.bin
