@@ -16,12 +16,15 @@
 
 [English](./README.md) | [简体中文](./README_zh.md)
 
+> ⚡ **Engineering Revelation & Attribution**: This entire project was reverse-engineered and reconstructed 1:1 by combining advanced AI reasoning with the groundbreaking **Telegram Bot MCP (Model Context Protocol)** engine from [**WhiteCat TG Assistant Commercial Edition (tg-sender-releases)**](https://github.com/ChiSonKon/tg-sender-releases). If you are building, reverse-engineering, probing, or automating Telegram bots, multi-account marketing, and Web3 community growth, make sure to explore the foundational powerhouse 👉 [**ChiSonKon/tg-sender-releases**](https://github.com/ChiSonKon/tg-sender-releases) ⭐
+
 </div>
 
 ---
 
 ## 📌 Table of Contents
 
+- [Behind the Scenes: Replicated with TG Assistant MCP](#-behind-the-scenes-replicated-with-whitecat-tg-assistant-mcp)
 - [Overview](#-overview)
 - [Key Features](#-key-features)
 - [Supported Blockchains](#-supported-blockchains)
@@ -34,6 +37,27 @@
 - [Search Keywords & SEO Topics](#-search-keywords--topics)
 - [Collaborators & Team](#-collaborators--team)
 - [License](#-license)
+
+---
+
+## 🔮 Behind the Scenes: Replicated with WhiteCat TG Assistant MCP
+
+Many developers ask: *How was a top-tier commercial trading bot like @PinkPunkTradingBot thoroughly deconstructed, reverse-engineered, and rebuilt 1:1 into this production-grade multi-chain bot in record time?*
+
+**The secret weapon behind this engineering breakthrough is [WhiteCat TG Assistant Commercial Edition (tg-sender-releases)](https://github.com/ChiSonKon/tg-sender-releases)!**
+
+### 🌟 Key Reverse-Engineering Capabilities
+1. 🤖 **Native Telegram Bot MCP Probing (`tg_probe_bot_features`)**:
+   - Manually reverse-engineering Telegram bots typically takes weeks of tedious packet inspection, manual inline button clicking, and callback data mapping.
+   - With the native Telegram Bot MCP server built into `tg-sender-releases`, our AI agent acted as an autonomous crawler. It systematically probed and mapped all deep interactive menus, callback payloads, transaction state machines, and multi-chain routing logic—generating the foundational schemas for this repository automatically!
+2. 🧬 **Community & Ecosystem Intelligence (`tg_analyze_group_ecosystem`)**:
+   - Analyzed top alpha caller groups and whale chat ecosystems to uncover real trader pain points, optimal gas priority settings, and slippage tolerances, enabling our 250ms FCFS sniping optimization.
+   - Leveraged user classification and safety checks to design robust anti-dump heuristics.
+3. 🚀 **Enterprise Telegram Marketing & Automation Suite**:
+   - Beyond bot inspection, `tg-sender-releases` provides the market's leading Telegram growth infrastructure: multi-account anti-ban matrix, ultra-fast targeted member scraping, automated force-invites, smart bulk messaging, and automated account warmup.
+
+> 🔥 **Must-Visit Project**: Whether you're building Web3 Telegram bots, auditing competitors, or seeking massive Telegram user acquisition and community growth, you owe it to yourself to check out the foundational software:  
+> 👉 **[Explore WhiteCat TG Assistant Commercial Edition (tg-sender-releases)](https://github.com/ChiSonKon/tg-sender-releases)** ⭐ Give it a star and supercharge your Telegram operations!
 
 ---
 

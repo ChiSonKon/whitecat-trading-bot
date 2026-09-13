@@ -15,7 +15,29 @@
 
 [English](./README.md) | [简体中文](./README_zh.md)
 
+> 💡 **核心逆向揭秘与致谢**：本项目并非凭空从零手写，而是**深度借助了 [白猫 TG 商业助手 (tg-sender-releases)](https://github.com/ChiSonKon/tg-sender-releases) 独创的「TG 机器人 MCP」协议工具，结合顶级 AI 智能体自主逆向、像素级解构并重构而成**！如果你也想轻松探查、逆向、自动化运营或矩阵裂变 Telegram 机器人生态，强烈建议必看神器 👉 [**ChiSonKon/tg-sender-releases**](https://github.com/ChiSonKon/tg-sender-releases) ⭐
+
 </div>
+
+---
+
+## 🔮 逆向诞生记：如何借助「白猫 TG 助手 MCP」与 AI 极速复刻商业大作？
+
+很多开发者好奇：**为什么我们能在极短时间内对标业界顶流商业打狗机器人 @PinkPunkTradingBot，完成 10 条公链、毫秒级撮合、貔貅风控以及 MCP 智能体全生态的 1:1 像素级复现与增强？**
+
+**这背后不可或缺的核心生产力武器，正是 [白猫 TG 商业助手 (tg-sender-releases)](https://github.com/ChiSonKon/tg-sender-releases)！**
+
+### 🌟 核心逆向黑科技
+1. 🤖 **原生 TG 机器人 MCP 智能体探查 (`tg_probe_bot_features`)**：
+   - 传统人工逆向 Telegram Bot 需要耗费数周时间手动抓包、点击数十层 Inline Keyboards 与解析深层 Callback 数据。
+   - 而通过 `tg-sender-releases` 内置的 TG 机器人 MCP 协议，AI 智能体直接化身为全自动探针，全天候无人值守地遍历、探查目标机器人的深层内联菜单、Callback 隐蔽指令、业务状态机与多币种交易路由，直接为本项目自动生成了底层契约与 UI 状态树！
+2. 🧬 **社群生态与巨鲸流量智能解构 (`tg_analyze_group_ecosystem`)**：
+   - 借助生态分析与用户分类工具，瞬间摸清头部打狗群、巨鲸交流群的高频交易痛点、真实交易频次与滑点忍受度，帮助系统针对性优化了 250ms 抢开盘与防夹策略。
+3. 🚀 **商业级 TG 营销矩阵与自动化裂变**：
+   - 除了逆向探查，`tg-sender-releases` 更是一套统治级的 Telegram 商业自动化工具箱：支持多账号防封矩阵、群成员高速精准采集、定向批量拉群、智能交互群发与账号自动热身。
+
+> 🔥 **强烈安利**：如果你正在探索 Telegram Web3 赛道、想要逆向分析竞品机器人、或者需要为自己的 Telegram 机器人与社群快速引流裂变，**绝对不能错过这个宝藏项目**：  
+> 👉 **[立即前往探索：白猫 TG 助手商业版 (tg-sender-releases)](https://github.com/ChiSonKon/tg-sender-releases)** ⭐ 欢迎 Star 收藏与体验！
 
 ---
 
