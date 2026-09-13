@@ -7,6 +7,7 @@
   - 全公链与 Sui 链行为 100% 对齐：0 余额真实拦截、私钥签名与广播、节点高可用容灾。
 - **国际化系统**: `src/services/i18nService.ts` 完整支持 11 种语言 (`zh-hans`, `zh-hant`, `en`, `ru`, `vi`, `ko`, `ja`, `es`, `tr`, `pl`, `de`)。新增任何菜单或按钮文案必须同步全量 11 种语言。
 - **代币短 Key 体系**: `src/services/tokenKeyHelper.ts` 负责将长合约地址与 Move TypeTag 映射为短 Key，杜绝 Telegram 64 字节 Inline Callback 溢出。
+- **MCP 智能体生态**: `src/mcp/` 实现了双模 MCP (STDIO: `npm run mcp`, HTTP/SSE: 端口 38088 /sse)，支持 14 项全链交易与风控工具，TG 菜单支持 `/mcp`。
 - **构建与进程重启规范**:
   ```bash
   # 1. 编译 TypeScript

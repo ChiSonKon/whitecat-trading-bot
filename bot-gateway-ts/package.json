@@ -7,11 +7,13 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/bot.js",
+    "mcp": "node dist/mcp/index.js",
     "dev": "tsx watch src/bot.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@bluefin-exchange/bluefin7k-aggregator-sdk": "^7.6.3",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@mysten/sui": "^2.29.0",
     "@solana/web3.js": "^1.98.4",
     "@types/bs58": "^5.0.0",
@@ -21,7 +23,8 @@
     "ethers": "^6.17.0",
     "grammy": "^1.34.0",
     "pureimage": "^0.4.20",
-    "socks-proxy-agent": "^10.1.0"
+    "socks-proxy-agent": "^10.1.0",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

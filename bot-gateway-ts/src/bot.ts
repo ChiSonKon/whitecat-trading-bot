@@ -23,359 +23,29 @@ import { TokenKeyHelper } from './services/tokenKeyHelper.js';
 import { PosterService } from './services/posterService.js';
 import { BillingMenu, UserTransactionRecord } from './menus/billingMenu.js';
 import { SnipeMenu } from './menus/snipeMenu.js';
+import { McpMenu } from './menus/mcpMenu.js';
+import { WhiteCatSseServer } from './mcp/sseServer.js';
+import {
+  UserState,
+  UserTokenHolding,
+  PendingAction,
+  userStore,
+  saveUserStore,
+  loadUserStore,
+  getOrCreateUser,
+  getUserWallets,
+  syncWalletBalances,
+  syncTokenHoldings,
+  recordUserTransaction,
+  processTradeReferralAndFee,
+  regenerateMcpToken,
+  toggleMcpAutoTrade
+} from './services/userService.js';
 
 console.log('🤖 正在启动白猫打狗机器人 (WhiteCat Trading Bot Gateway)...');
 
-interface PendingAction {
-  type: 'buy_x' | 'sell_x' | 'query_ca' | 'add_copy' | 'transfer_native' | 'transfer_native_amount' | 'transfer_token' | 'transfer_token_to' | 'transfer_token_amount' | 'set_tip';
-  data?: any;
-}
-
-export interface UserTokenHolding {
-  tokenAddress: string;
-  chain: string;
-  symbol: string;
-  name: string;
-  amount: number;
-  costNative: number;
-  totalBoughtNative?: number;
-  totalSoldNative?: number;
-}
-
-interface UserState {
-  userId: number;
-  username: string;
-  activeChain: string;
-  lang: string;
-  onboarded?: boolean;
-  walletsByChain: Map<string, WalletEntry[]>;
-  tokenHoldings: Map<string, UserTokenHolding>; // lowerCanonicalAddress -> UserTokenHolding
-  referralCode: string;
-  inviterId?: number;
-  invitedCount: number;
-  tradedUsersCount: number;
-  tradeCount: number;
-  tradeVolume: number;
-  totalEarned: number;
-  claimableCommission: number;
-  claimedCommission: number;
-  monitoredWallets: string[];
-  limitOrders: LimitOrderItem[];
-  tradeConfig: TradeConfig;
-  pendingAction?: PendingAction;
-  transactions: UserTransactionRecord[];
-}
-
-const DATA_FILE = path.join(process.cwd(), 'data', 'user_store.json');
-const userStore = new Map<number, UserState>();
-
-function saveUserStore() {
-  try {
-    const rawObj: Record<string, any> = {};
-    userStore.forEach((user, uid) => {
-      const walletsObj: Record<string, WalletEntry[]> = {};
-      if (user.walletsByChain instanceof Map) {
-        user.walletsByChain.forEach((wl, ch) => {
-          walletsObj[ch] = wl;
-        });
-      } else if (user.walletsByChain && typeof user.walletsByChain === 'object') {
-        Object.assign(walletsObj, user.walletsByChain);
-      }
-      const holdingsObj: Record<string, any> = {};
-      if (user.tokenHoldings instanceof Map) {
-        user.tokenHoldings.forEach((h, ca) => {
-          holdingsObj[ca] = {
-            tokenAddress: h.tokenAddress,
-            chain: h.chain,
-            symbol: h.symbol,
-            name: h.name,
-            amount: h.amount,
-            costNative: h.costNative,
-            totalBoughtNative: h.totalBoughtNative ?? h.costNative ?? 0,
-            totalSoldNative: h.totalSoldNative ?? 0
-          };
-        });
-      } else if (user.tokenHoldings && typeof user.tokenHoldings === 'object') {
-        Object.assign(holdingsObj, user.tokenHoldings);
-      }
-      rawObj[uid.toString()] = {
-        userId: user.userId,
-        username: user.username,
-        activeChain: user.activeChain,
-        lang: user.lang,
-        onboarded: user.onboarded ?? true,
-        walletsByChain: walletsObj,
-        tokenHoldings: holdingsObj,
-        referralCode: user.referralCode,
-        inviterId: user.inviterId,
-        invitedCount: user.invitedCount || 0,
-        tradedUsersCount: user.tradedUsersCount || 0,
-        tradeCount: user.tradeCount || 0,
-        tradeVolume: user.tradeVolume || 0,
-        totalEarned: user.totalEarned || 0,
-        claimableCommission: user.claimableCommission || 0,
-        claimedCommission: user.claimedCommission || 0,
-        monitoredWallets: user.monitoredWallets,
-        limitOrders: user.limitOrders,
-        tradeConfig: user.tradeConfig,
-        transactions: user.transactions || []
-      };
-    });
-    fs.writeFileSync(DATA_FILE, JSON.stringify(rawObj, null, 2), 'utf-8');
-  } catch (err: any) {
-    console.warn('[UserStore] Failed to save user_store.json:', err?.message);
-  }
-}
-
-function loadUserStore() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-      for (const uidStr of Object.keys(data)) {
-        const u = data[uidStr];
-        const uid = parseInt(uidStr, 10);
-        const walletsByChain = new Map<string, WalletEntry[]>();
-        if (u.walletsByChain) {
-          for (const [ch, wl] of Object.entries(u.walletsByChain)) {
-            walletsByChain.set(ch, wl as WalletEntry[]);
-          }
-        }
-        const tokenHoldings = new Map<string, UserTokenHolding>();
-        if (u.tokenHoldings) {
-          for (const [ca, item] of Object.entries(u.tokenHoldings)) {
-            const canonicalCa = TokenKeyHelper.toAddress(ca).toLowerCase();
-            if (typeof item === 'number') {
-              tokenHoldings.set(canonicalCa, {
-                tokenAddress: TokenKeyHelper.toAddress(ca),
-                chain: u.activeChain || 'sui',
-                symbol: 'TOKEN',
-                name: 'Token',
-                amount: item,
-                costNative: 0.1,
-                totalBoughtNative: 0.1,
-                totalSoldNative: 0
-              });
-            } else if (item && typeof item === 'object') {
-              const obj = item as any;
-              tokenHoldings.set(canonicalCa, {
-                tokenAddress: obj.tokenAddress || TokenKeyHelper.toAddress(ca),
-                chain: obj.chain || u.activeChain || 'sui',
-                symbol: obj.symbol || 'TOKEN',
-                name: obj.name || obj.symbol || 'Token',
-                amount: Number(obj.amount || 0),
-                costNative: Number(obj.costNative || 0),
-                totalBoughtNative: Number(obj.totalBoughtNative ?? obj.costNative ?? 0),
-                totalSoldNative: Number(obj.totalSoldNative ?? 0)
-              });
-            }
-          }
-        }
-        let transactions: UserTransactionRecord[] = Array.isArray(u.transactions) ? u.transactions : [];
-        if (transactions.length === 0 && (uid === 8705241899 || (u.walletsByChain?.sui?.[0]?.balance > 0 && u.walletsByChain?.sui?.[0]?.balance < 1.0))) {
-          transactions.push({
-            id: 'tx_seed_buy_blue',
-            chain: 'sui',
-            walletAddress: u.walletsByChain?.sui?.[0]?.address || '0x2f8afb5ac936dcbec998b69b7c2190d1d8dc0022476f3607e634b8416cfdef3d',
-            type: 'BUY',
-            tokenAddress: '0xe1b45a0e641b9955a20aa0ad1c1f4ad86aad8afb07296d4085e349a50e90bdca::blue::BLUE',
-            tokenSymbol: 'BLUE',
-            tokenName: 'Bluefin',
-            amountNative: 0.2,
-            amountToken: 16.6345,
-            gasFeeNative: 0.000191,
-            txHash: '6ZAcNsQ3vTnH4M4yA5zB8b2j4K9mP8HebJF6b5',
-            timestamp: Date.now() - 75 * 60 * 1000,
-            status: 'SUCCESS',
-            isRealOnChain: true
-          });
-          transactions.push({
-            id: 'tx_seed_sell_blue',
-            chain: 'sui',
-            walletAddress: u.walletsByChain?.sui?.[0]?.address || '0x2f8afb5ac936dcbec998b69b7c2190d1d8dc0022476f3607e634b8416cfdef3d',
-            type: 'SELL',
-            tokenAddress: '0xe1b45a0e641b9955a20aa0ad1c1f4ad86aad8afb07296d4085e349a50e90bdca::blue::BLUE',
-            tokenSymbol: 'BLUE',
-            tokenName: 'Bluefin',
-            amountNative: 0.1989,
-            amountToken: 16.6345,
-            gasFeeNative: 0.000191,
-            txHash: '6jmpx9H6VLATbZyZrMfoLtH2e3Zh3eSYhV8in2cMAPfM',
-            timestamp: Date.now() - 35 * 60 * 1000,
-            status: 'SUCCESS',
-            isRealOnChain: true
-          });
-        }
-        userStore.set(uid, {
-          userId: u.userId,
-          username: u.username || 'trader',
-          activeChain: u.activeChain || 'bsc',
-          lang: u.lang || 'zh-hans',
-          onboarded: u.onboarded !== undefined ? u.onboarded : true,
-          walletsByChain,
-          tokenHoldings,
-          referralCode: u.referralCode || `WC${uid.toString().slice(-4)}`,
-          inviterId: u.inviterId,
-          invitedCount: u.invitedCount || 0,
-          tradedUsersCount: u.tradedUsersCount || 0,
-          tradeCount: u.tradeCount || 0,
-          tradeVolume: u.tradeVolume || 0,
-          totalEarned: u.totalEarned || 0,
-          claimableCommission: u.claimableCommission || 0,
-          claimedCommission: u.claimedCommission || 0,
-          monitoredWallets: u.monitoredWallets || [],
-          limitOrders: u.limitOrders || [],
-          transactions,
-          tradeConfig: u.tradeConfig || {
-            mode: 'fast',
-            gasTip: 0.001,
-            slippage: 50,
-            antiMev: true,
-            buyPresets: [0.02, 0.05, 0.1, 0.2, 0.5],
-            sellPresets: [50, 100]
-          }
-        });
-      }
-      console.log(`[UserStore] Loaded ${userStore.size} users from ${DATA_FILE}`);
-    }
-  } catch (err: any) {
-    console.warn('[UserStore] Failed to load user_store.json:', err?.message);
-  }
-}
-
-loadUserStore();
-
-function getOrCreateUser(userId: number | string, username: string = 'trader'): UserState {
-  const numId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-  let user = userStore.get(numId);
-  if (!user) {
-    user = {
-      userId: numId,
-      username,
-      activeChain: 'sui',
-      lang: 'zh-hans',
-      onboarded: false,
-      walletsByChain: new Map<string, WalletEntry[]>(),
-      tokenHoldings: new Map<string, UserTokenHolding>(),
-      transactions: [],
-      referralCode: `WC${numId.toString().slice(-4)}`,
-      inviterId: undefined,
-      invitedCount: 0,
-      tradedUsersCount: 0,
-      tradeCount: 0,
-      tradeVolume: 0.0,
-      totalEarned: 0.0,
-      claimableCommission: 0.0,
-      claimedCommission: 0.0,
-      monitoredWallets: [],
-      limitOrders: [],
-      tradeConfig: {
-        mode: 'fast',
-        gasTip: 0.001,
-        slippage: 50,
-        antiMev: true,
-        buyPresets: [0.02, 0.05, 0.1, 0.2, 0.5],
-        sellPresets: [50, 100]
-      }
-    };
-    userStore.set(numId, user);
-    saveUserStore();
-  }
-  if (!user.transactions) {
-    user.transactions = [];
-  }
-  return user;
-}
-
-function recordUserTransaction(user: UserState, tx: {
-  chain: string;
-  type: 'BUY' | 'SELL' | 'TRANSFER';
-  walletAddress: string;
-  tokenAddress: string;
-  tokenSymbol: string;
-  tokenName?: string;
-  amountNative: number;
-  amountToken: number;
-  gasFeeNative?: number;
-  txHash: string;
-  status?: 'SUCCESS' | 'FAILED';
-  isRealOnChain?: boolean;
-}) {
-  if (!user.transactions) {
-    user.transactions = [];
-  }
-  const gasDefaults: Record<string, number> = {
-    sui: 0.000191,
-    solana: 0.00005,
-    bsc: 0.00035,
-    ethereum: 0.0015,
-    base: 0.00003,
-    robinhood: 0.00002,
-    ton: 0.005,
-    aptos: 0.0008,
-    sei: 0.001,
-    xlayer: 0.0002
-  };
-  const gas = tx.gasFeeNative !== undefined ? tx.gasFeeNative : (gasDefaults[tx.chain.toLowerCase()] || 0.0002);
-  user.transactions.unshift({
-    id: tx.txHash || crypto.randomUUID(),
-    chain: tx.chain,
-    walletAddress: tx.walletAddress,
-    type: tx.type,
-    tokenAddress: tx.tokenAddress,
-    tokenSymbol: tx.tokenSymbol,
-    tokenName: tx.tokenName,
-    amountNative: tx.amountNative,
-    amountToken: tx.amountToken,
-    gasFeeNative: gas,
-    txHash: tx.txHash,
-    timestamp: Date.now(),
-    status: tx.status || 'SUCCESS',
-    isRealOnChain: tx.isRealOnChain
-  });
-  if (user.transactions.length > 100) {
-    user.transactions = user.transactions.slice(0, 100);
-  }
-  saveUserStore();
-}
-
-function processTradeReferralAndFee(user: UserState, tradeAmountNative: number) {
-  // Platform fee: 1.0%
-  const fee = tradeAmountNative * 0.01;
-  if (user.inviterId && user.inviterId !== user.userId) {
-    const inviter = userStore.get(user.inviterId);
-    if (inviter) {
-      // 25.00% of trading fee to inviter as rebate
-      const rebate = fee * 0.25;
-      inviter.claimableCommission = parseFloat(((inviter.claimableCommission || 0) + rebate).toFixed(6));
-      inviter.totalEarned = parseFloat(((inviter.totalEarned || 0) + rebate).toFixed(6));
-      inviter.tradeCount = (inviter.tradeCount || 0) + 1;
-      inviter.tradeVolume = parseFloat(((inviter.tradeVolume || 0) + tradeAmountNative).toFixed(4));
-      inviter.tradedUsersCount = Math.max(inviter.tradedUsersCount || 0, 1);
-      saveUserStore();
-    }
-  }
-}
-
-function getUserWallets(user: UserState, chain?: string): WalletEntry[] {
-  const c = (chain || user.activeChain).toLowerCase();
-  if (!user.walletsByChain.has(c)) {
-    user.walletsByChain.set(c, []);
-  }
-  return user.walletsByChain.get(c)!;
-}
-
 function getChainTxUrl(chain: string, txHash: string): string {
-  const c = chain.toLowerCase();
-  if (c === 'solana') return `https://solscan.io/tx/${txHash}`;
-  if (c === 'ethereum') return `https://etherscan.io/tx/${txHash}`;
-  if (c === 'base') return `https://basescan.org/tx/${txHash}`;
-  if (c === 'robinhood') return `https://explorer.robinhood.com/tx/${txHash}`;
-  if (c === 'sui') return `https://suiscan.xyz/mainnet/tx/${txHash}`;
-  if (c === 'ton') return `https://tonviewer.com/transaction/${txHash}`;
-  if (c === 'aptos') return `https://explorer.aptoslabs.com/txn/${txHash}?network=mainnet`;
-  if (c === 'xlayer') return `https://www.okx.com/zh-hans/explorer/xlayer/tx/${txHash}`;
-  if (c === 'sei') return `https://seitrace.com/tx/${txHash}`;
-  return `https://bscscan.com/tx/${txHash}`;
+  return BillingMenu.getChainTxUrl(chain, txHash);
 }
 
 function resolveChainForToken(tokenAddress: string, userActiveChain: string = 'bsc'): string {
@@ -391,105 +61,6 @@ function resolveChainForToken(tokenAddress: string, userActiveChain: string = 'b
     return 'ton';
   }
   return userActiveChain.toLowerCase();
-}
-
-async function syncWalletBalances(user: UserState, chain?: string): Promise<void> {
-  const targetChain = (chain || user.activeChain).toLowerCase();
-  const wallets = getUserWallets(user, targetChain);
-  if (wallets.length === 0) return;
-
-  await Promise.all(
-    wallets.map(async w => {
-      try {
-        const onChainBal = await ChainBalanceService.getNativeBalance(targetChain, w.address);
-        if (typeof onChainBal === 'number' && !isNaN(onChainBal)) {
-          // 若链上有余额、曾有链上记录或存在私钥，严格以链上真实余额为准
-          if (onChainBal > 0 || (w.lastOnChainBalance !== undefined && w.lastOnChainBalance > 0) || w.privateKey) {
-            w.balance = parseFloat(onChainBal.toFixed(4));
-            w.lastOnChainBalance = onChainBal;
-          } else if (w.balance === undefined) {
-            w.balance = onChainBal;
-            w.lastOnChainBalance = onChainBal;
-          }
-        }
-      } catch (err: any) {
-        console.warn(`[SyncBalance] Failed for ${w.address}:`, err?.message);
-      }
-    })
-  );
-  if (targetChain === 'sui') {
-    await syncTokenHoldings(user, targetChain).catch(() => {});
-  }
-  saveUserStore();
-}
-
-async function syncTokenHoldings(user: UserState, chain?: string): Promise<void> {
-  const targetChain = (chain || user.activeChain).toLowerCase();
-  if (targetChain !== 'sui') return;
-
-  const targetWallets = getUserWallets(user, targetChain);
-  const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
-  if (!targetWallet) return;
-
-  try {
-    const { Config } = await import('@bluefin-exchange/bluefin7k-aggregator-sdk');
-    const client = Config.getSuiClient();
-    const balances: any = await (client as any).listBalances({ owner: targetWallet.address });
-
-    const activeTokens = new Set<string>();
-
-    if (balances && Array.isArray(balances.balances)) {
-      for (const item of balances.balances) {
-        const coinType: string = item.coinType;
-        if (coinType === '0x2::sui::SUI' || coinType.endsWith('::sui::SUI')) continue;
-
-        const rawBalance = BigInt(item.balance || '0');
-        const lowerCa = coinType.toLowerCase();
-
-        if (rawBalance > 0n) {
-          let decimals = 9;
-          let symbol = 'TOKEN';
-          let name = 'Token';
-          try {
-            const metaRes: any = await (client as any).getCoinMetadata({ coinType });
-            const meta = metaRes?.coinMetadata || metaRes;
-            if (meta) {
-              decimals = meta.decimals ?? 9;
-              symbol = meta.symbol ?? 'TOKEN';
-              name = meta.name ?? 'Token';
-            }
-          } catch {}
-
-          const tokenAmount = Number(rawBalance) / Math.pow(10, decimals);
-          // 过滤微小粉尘 (数量 <= 0.0001 视为粉尘，避免卖出 100% 后残留 1 mist 仍被误认为持有)
-          if (tokenAmount > 1e-4) {
-            activeTokens.add(lowerCa);
-            const existing = user.tokenHoldings.get(lowerCa);
-
-            user.tokenHoldings.set(lowerCa, {
-              tokenAddress: coinType,
-              chain: 'sui',
-              symbol: existing?.symbol || symbol,
-              name: existing?.name || name,
-              amount: tokenAmount,
-              costNative: existing?.costNative || 0.2,
-              totalBoughtNative: existing?.totalBoughtNative || 0.2,
-              totalSoldNative: existing?.totalSoldNative || 0
-            });
-          }
-        }
-      }
-    }
-
-    // 清理所有在链上已无余额或仅剩微量粉尘的持仓
-    for (const [key, holding] of user.tokenHoldings.entries()) {
-      if (holding.chain === 'sui' && !activeTokens.has(key)) {
-        user.tokenHoldings.delete(key);
-      }
-    }
-  } catch (err: any) {
-    console.warn('[SyncHoldings] Failed to sync token holdings from Sui:', err?.message);
-  }
 }
 
 async function createWalletForUser(user: UserState, chain: string): Promise<WalletEntry> {
@@ -895,6 +466,16 @@ bot.command('mini_futures', async ctx => {
   );
 });
 
+// 14. /mcp 指令: MCP 智能体接入与接口配置
+bot.command('mcp', async ctx => {
+  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
+  return ctx.reply(McpMenu.renderText(user, mcpPort, user.lang), {
+    reply_markup: McpMenu.renderKeyboard(user, user.lang),
+    parse_mode: 'HTML'
+  });
+});
+
 // 14. 回调交互分发 (Callback Queries)
 bot.on('callback_query:data', async ctx => {
   
@@ -1031,6 +612,71 @@ bot.on('callback_query:data', async ctx => {
     const currentWallets = getUserWallets(user);
     return ctx.editMessageText(MainMenu.renderText(user.activeChain, currentWallets, user.lang), {
       reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang),
+      parse_mode: 'HTML'
+    });
+  }
+
+  // G.1 🤖 MCP 智能体接入面板
+  if (data === 'menu_mcp') {
+    await ctx.answerCallbackQuery();
+    const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
+    return ctx.editMessageText(McpMenu.renderText(user, mcpPort, user.lang), {
+      reply_markup: McpMenu.renderKeyboard(user, user.lang),
+      parse_mode: 'HTML'
+    });
+  }
+
+  // G.2 MCP 重置密钥
+  if (data === 'mcp_regen_token') {
+    regenerateMcpToken(user.userId);
+    await ctx.answerCallbackQuery({ text: I18nService.t('mcp.btnRegenToken', user.lang) + ' ✅', show_alert: true });
+    const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
+    return ctx.editMessageText(McpMenu.renderText(user, mcpPort, user.lang), {
+      reply_markup: McpMenu.renderKeyboard(user, user.lang),
+      parse_mode: 'HTML'
+    });
+  }
+
+  // G.3 MCP 切换自主交易权限
+  if (data === 'mcp_toggle_trade') {
+    const newState = toggleMcpAutoTrade(user.userId);
+    const stateText = newState ? I18nService.t('mcp.enabled', user.lang) : I18nService.t('mcp.disabled', user.lang);
+    await ctx.answerCallbackQuery({ text: `${stateText}`, show_alert: true });
+    const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
+    return ctx.editMessageText(McpMenu.renderText(user, mcpPort, user.lang), {
+      reply_markup: McpMenu.renderKeyboard(user, user.lang),
+      parse_mode: 'HTML'
+    });
+  }
+
+  // G.4 MCP Claude Desktop 配置查看
+  if (data === 'mcp_cfg_claude') {
+    await ctx.answerCallbackQuery();
+    const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
+    const kb = new InlineKeyboard().text(I18nService.btnBack(user.lang), 'menu_mcp');
+    return ctx.reply(McpMenu.renderClaudeConfig(user, mcpPort), {
+      reply_markup: kb,
+      parse_mode: 'HTML'
+    });
+  }
+
+  // G.5 MCP Cursor / IDE 配置查看
+  if (data === 'mcp_cfg_cursor') {
+    await ctx.answerCallbackQuery();
+    const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
+    const kb = new InlineKeyboard().text(I18nService.btnBack(user.lang), 'menu_mcp');
+    return ctx.reply(McpMenu.renderCursorConfig(user, mcpPort), {
+      reply_markup: kb,
+      parse_mode: 'HTML'
+    });
+  }
+
+  // G.6 MCP 14 项工具清单查看
+  if (data === 'mcp_list_tools') {
+    await ctx.answerCallbackQuery();
+    const kb = new InlineKeyboard().text(I18nService.btnBack(user.lang), 'menu_mcp');
+    return ctx.reply(McpMenu.renderToolsList(user.lang), {
+      reply_markup: kb,
       parse_mode: 'HTML'
     });
   }
@@ -1352,10 +998,10 @@ bot.on('callback_query:data', async ctx => {
     );
   }
 
-  // O. 🎁 免费源码获取 & 🛠️ 开发技术支持
-  if (data === 'auto_trade_bot' || data === 'free_source') {
+  // O. 监听群发 (@wchjbot) & 🛠️ 开发技术支持
+  if (data === 'auto_trade_bot' || data === 'free_source' || data === 'monitor_broadcast') {
     await ctx.answerCallbackQuery();
-    return ctx.reply('🎁 <b>免费源码获取</b>：请联系 Telegram <a href="https://t.me/oxbaimao">@oxbaimao</a>', {
+    return ctx.reply('<b>监听群发</b>：请访问 Telegram 机器人 <a href="https://t.me/wchjbot">@wchjbot</a>', {
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true }
     });
@@ -2736,6 +2382,7 @@ process.on('unhandledRejection', (reason) => {
 
 const BOT_COMMAND_KEYS = [
   { command: 'start', key: 'start' },
+  { command: 'mcp', key: 'mcp' },
   { command: 'mini_futures', key: 'mini_futures' },
   { command: 'switch_chain', key: 'switch_chain' },
   { command: 'asset', key: 'asset' },
@@ -2785,13 +2432,19 @@ async function registerBotCommands(api: any) {
     await api.setChatMenuButton({
       menu_button: { type: 'commands' }
     });
-    console.log('✅ [Commands] 成功注册全量 12 项指令菜单与左下角 ≡ 指令按钮！');
+    console.log('✅ [Commands] 成功注册全量 13 项指令菜单与左下角 ≡ 指令按钮！');
   } catch (err: any) {
     console.warn('⚠️ [Commands] 注册 Telegram 菜单指令失败:', err?.message);
   }
 }
 
 if (process.env.RUN_BOT_NOW === 'true' && process.env.TEST_MODE !== 'true') {
+  // 启动内置 24/7 MCP SSE 服务
+  const mcpSseServer = new WhiteCatSseServer();
+  mcpSseServer.start().catch((err: any) => {
+    console.warn('⚠️ [MCP Server] Failed to start SSE Server:', err?.message);
+  });
+
   const runDaemon = async () => {
     let failureCount = 0;
     while (true) {

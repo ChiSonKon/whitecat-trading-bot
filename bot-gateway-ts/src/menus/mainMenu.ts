@@ -76,7 +76,9 @@ export class MainMenu {
         .row()
         .text(langLabel, 'lang')
         .row()
-        .text(I18nService.btnSwitchChain(lang), 'chain_change');
+        .text(I18nService.btnSwitchChain(lang), 'chain_change')
+        .row()
+        .text(I18nService.btnMcp(lang), 'menu_mcp');
       return kb;
     }
 
@@ -101,10 +103,13 @@ export class MainMenu {
       .text(langLabel, 'lang')
       .text(I18nService.btnSwitchChain(lang), 'chain_change')
       .row()
-      // Row 6: 免费源码获取 (@oxbaimao)
-      .url(I18nService.btnFreeSourceCode(lang), 'https://t.me/oxbaimao')
+      // Row 6: 🤖 MCP 智能体接入 (MCP Agent Integration)
+      .text(I18nService.btnMcp(lang), 'menu_mcp')
       .row()
-      // Row 7: TG机器人开发 / 群发引流 / Web3技术支持 (https://t.me/biqrxnxiYW/667)
+      // Row 7: 监听群发 (@wchjbot)
+      .url(I18nService.btnMonitorBroadcast(lang), 'https://t.me/wchjbot')
+      .row()
+      // Row 8: TG机器人开发 / 群发引流 / Web3技术支持 (https://t.me/biqrxnxiYW/667)
       .url(I18nService.btnDevTechSupport(lang), 'https://t.me/biqrxnxiYW/667');
 
     return kb;

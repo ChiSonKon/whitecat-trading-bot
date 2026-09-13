@@ -189,6 +189,227 @@ const dict: Record<string, Record<string, string>> = {
     "pl": "Polecenia i nagrody",
     "de": "Empfehlungen & Belohnungen"
   },
+  "cmd.mcp": {
+    "en": "MCP Agent Access & Settings",
+    "zh-hans": "MCP 智能体接入与设置",
+    "zh-hant": "MCP 智能體接入與設置",
+    "vi": "Cài đặt & kết nối MCP Agent",
+    "ru": "Подключение MCP агентов",
+    "ko": "MCP 에이전트 연동 및 설정",
+    "ja": "MCPエージェント連携・設定",
+    "es": "Acceso y configuración de agente MCP",
+    "tr": "MCP Ajan Erişimi ve Ayarları",
+    "pl": "Dostęp i konfiguracja agenta MCP",
+    "de": "MCP-Agent-Zugriff & Einstellungen"
+  },
+  "btn.mcp": {
+    "en": "🤖 MCP Agent Access",
+    "zh-hans": "🤖 MCP 智能体接入",
+    "zh-hant": "🤖 MCP 智能體接入",
+    "vi": "🤖 Kết nối MCP Agent",
+    "ru": "🤖 Подключение MCP Агента",
+    "ko": "🤖 MCP 에이전트 연동",
+    "ja": "🤖 MCPエージェント連携",
+    "es": "🤖 Acceso Agente MCP",
+    "tr": "🤖 MCP Ajan Erişimi",
+    "pl": "🤖 Dostęp Agenta MCP",
+    "de": "🤖 MCP-Agent-Zugriff"
+  },
+  "mcp.title": {
+    "en": "WhiteCat MCP Agent Gateway",
+    "zh-hans": "白猫打狗 MCP 智能体接入网关",
+    "zh-hant": "白貓打狗 MCP 智能體接入網關",
+    "vi": "Cổng kết nối WhiteCat MCP Agent",
+    "ru": "WhiteCat MCP Шлюз Агентов",
+    "ko": "WhiteCat MCP 에이전트 게이트웨이",
+    "ja": "WhiteCat MCP エージェント連携ゲートウェイ",
+    "es": "Pasarela de Agente MCP WhiteCat",
+    "tr": "WhiteCat MCP Ajan Ağ Geçidi",
+    "pl": "Bramka Agenta MCP WhiteCat",
+    "de": "WhiteCat MCP-Agenten-Gateway"
+  },
+  "mcp.serverStatus": {
+    "en": "MCP Service Status",
+    "zh-hans": "MCP 服务状态",
+    "zh-hant": "MCP 服務狀態",
+    "vi": "Trạng thái dịch vụ MCP",
+    "ru": "Статус службы MCP",
+    "ko": "MCP 서비스 상태",
+    "ja": "MCPサービス状態",
+    "es": "Estado del servicio MCP",
+    "tr": "MCP Hizmet Durumu",
+    "pl": "Status usługi MCP",
+    "de": "MCP-Dienststatus"
+  },
+  "mcp.active": {
+    "en": "Active & Listening (Port: {port})",
+    "zh-hans": "🟢 正常运行中 (监听端口: {port})",
+    "zh-hant": "🟢 正常運行中 (監聽端口: {port})",
+    "vi": "🟢 Đang hoạt động (Cổng: {port})",
+    "ru": "🟢 Работает (Порт: {port})",
+    "ko": "🟢 활성 실행 중 (포트: {port})",
+    "ja": "🟢 稼働中 (ポート: {port})",
+    "es": "🟢 Activo y escuchando (Puerto: {port})",
+    "tr": "🟢 Aktif ve Çalışıyor (Port: {port})",
+    "pl": "🟢 Aktywny i nasłuchuje (Port: {port})",
+    "de": "🟢 Aktiv und betriebsbereit (Port: {port})"
+  },
+  "mcp.userId": {
+    "en": "User ID",
+    "zh-hans": "用户 ID",
+    "zh-hant": "用戶 ID",
+    "vi": "ID người dùng",
+    "ru": "ID пользователя",
+    "ko": "사용자 ID",
+    "ja": "ユーザーID",
+    "es": "ID de usuario",
+    "tr": "Kullanıcı ID",
+    "pl": "ID użytkownika",
+    "de": "Benutzer-ID"
+  },
+  "mcp.token": {
+    "en": "MCP Secret Token",
+    "zh-hans": "MCP 授权密钥 (Token)",
+    "zh-hant": "MCP 授權密鑰 (Token)",
+    "vi": "Mã xác thực bí mật MCP",
+    "ru": "Секретный токен MCP",
+    "ko": "MCP 인증 토큰 (Token)",
+    "ja": "MCP認証トークン (Token)",
+    "es": "Token secreto MCP",
+    "tr": "MCP Gizli Belirteci",
+    "pl": "Sekretny token MCP",
+    "de": "MCP-Geheimtoken"
+  },
+  "mcp.autoTrade": {
+    "en": "Agent Autonomous Trading",
+    "zh-hans": "智能体自主交易权限",
+    "zh-hant": "智能體自主交易權限",
+    "vi": "Quyền tự động giao dịch của Agent",
+    "ru": "Автономная торговля агента",
+    "ko": "에이전트 자율 거래 권한",
+    "ja": "エージェント自律取引権限",
+    "es": "Comercio autónomo del agente",
+    "tr": "Ajan Bağımsız İşlem Yetkisi",
+    "pl": "Autonomiczny handel agenta",
+    "de": "Autonomer Agentenhandel"
+  },
+  "mcp.maxLimit": {
+    "en": "Single Trade Limit",
+    "zh-hans": "单笔交易安全上限",
+    "zh-hant": "單筆交易安全上限",
+    "vi": "Hạn mức giao dịch tối đa đơn lẻ",
+    "ru": "Лимит на одну сделку",
+    "ko": "1회 거래 한도",
+    "ja": "1回あたりの取引上限",
+    "es": "Límite por operación individual",
+    "tr": "Tek İşlem Güvenlik Limiti",
+    "pl": "Limit pojedynczej transakcji",
+    "de": "Sicherheitslimit pro Trade"
+  },
+  "mcp.enabled": {
+    "en": "🟢 Allowed (Agent can buy/sell)",
+    "zh-hans": "🟢 已允许 (Agent 可自主交易)",
+    "zh-hant": "🟢 已允許 (Agent 可自主交易)",
+    "vi": "🟢 Cho phép (Agent có thể giao dịch)",
+    "ru": "🟢 Разрешено (Агент может торговать)",
+    "ko": "🟢 허용됨 (에이전트 거래 가능)",
+    "ja": "🟢 許可済み (エージェント取引可能)",
+    "es": "🟢 Permitido (El agente puede operar)",
+    "tr": "🟢 İzin Verildi (Ajan işlem yapabilir)",
+    "pl": "🟢 Dozwolone (Agent może handlować)",
+    "de": "🟢 Erlaubt (Agent darf traden)"
+  },
+  "mcp.disabled": {
+    "en": "🔴 Disabled (Read-only / Audit mode)",
+    "zh-hans": "🔴 已关闭 (仅只读投研审计)",
+    "zh-hant": "🔴 已關閉 (僅只讀投研審計)",
+    "vi": "🔴 Tắt (Chỉ đọc / Kiểm tra)",
+    "ru": "🔴 Отключено (Только чтение)",
+    "ko": "🔴 비활성 (읽기 전용 / 분석 모드)",
+    "ja": "🔴 無効 (読み取り専用・監査モード)",
+    "es": "🔴 Desactivado (Solo lectura / Auditoría)",
+    "tr": "🔴 Devre Dışı (Yalnızca Okuma / Denetim)",
+    "pl": "🔴 Wyłączone (Tylko odczyt / Audyt)",
+    "de": "🔴 Deaktiviert (Nur Lese-/Prüfmodus)"
+  },
+  "mcp.hint": {
+    "en": "💡 Any AI Agent (Claude Desktop, Cursor, Antigravity, etc.) can connect to WhiteCat via MCP to execute on-chain trading and token risk audits!",
+    "zh-hans": "💡 任意 AI 智能体 (Claude Desktop, Cursor, Antigravity 等) 均可通过 MCP 协议接入白猫打狗机器人，秒级调用 10 链闪电交易、余额查询与貔貅审计！",
+    "zh-hant": "💡 任意 AI 智能體 (Claude Desktop, Cursor, Antigravity 等) 均可通過 MCP 協議接入白貓打狗機器人，秒級調用 10 鏈閃電交易、餘額查詢與貔貅審計！",
+    "vi": "💡 Mọi AI Agent (Claude, Cursor, Antigravity) đều có thể kết nối với WhiteCat qua MCP để giao dịch và kiểm tra rủi ro trên 10 chuỗi!",
+    "ru": "💡 Любой ИИ-агент (Claude, Cursor, Antigravity) может подключиться к WhiteCat по MCP для торговли и аудита токенов!",
+    "ko": "💡 모든 AI 에이전트(Claude, Cursor, Antigravity 등)가 MCP를 통해 WhiteCat에 연결하여 10개 체인의 거래 및 감사를 수행할 수 있습니다!",
+    "ja": "💡 任意のAIエージェント (Claude, Cursor, Antigravity等) はMCP経由でWhiteCatに接続し、10チェーンの取引や監査を即座に実行可能です！",
+    "es": "💡 ¡Cualquier agente de IA (Claude, Cursor, Antigravity) puede conectarse a WhiteCat a través de MCP para operar y auditar tokens!",
+    "tr": "💡 Herhangi bir AI Ajanı (Claude, Cursor, Antigravity vb.), 10 zincirde işlem ve denetim yapmak için MCP üzerinden WhiteCat'e bağlanabilir!",
+    "pl": "💡 Dowolny Agent AI (Claude, Cursor, Antigravity) może połączyć się z WhiteCat przez MCP, aby handlować i audytować tokeny!",
+    "de": "💡 Jeder KI-Agent (Claude, Cursor, Antigravity) kann sich über MCP mit WhiteCat verbinden, um auf 10 Chains zu traden und Token zu prüfen!"
+  },
+  "mcp.btnRegenToken": {
+    "en": "🔄 Reset Secret Token",
+    "zh-hans": "🔄 重置授权密钥",
+    "zh-hant": "🔄 重置授權密鑰",
+    "vi": "🔄 Đặt lại Token",
+    "ru": "🔄 Сбросить токен",
+    "ko": "🔄 토큰 재발급",
+    "ja": "🔄 トークン再生成",
+    "es": "🔄 Restablecer token",
+    "tr": "🔄 Belirteci Sıfırla",
+    "pl": "🔄 Zresetuj token",
+    "de": "🔄 Token zurücksetzen"
+  },
+  "mcp.btnToggleTrade": {
+    "en": "🛡 Toggle Auto Trade",
+    "zh-hans": "🛡 切换自主交易权限",
+    "zh-hant": "🛡 切換自主交易權限",
+    "vi": "🛡 Bật/Tắt tự động giao dịch",
+    "ru": "🛡 Переключить авто-торговлю",
+    "ko": "🛡 자율 거래 권한 전환",
+    "ja": "🛡 自律取引権限切替",
+    "es": "🛡 Alternar comercio automático",
+    "tr": "🛡 Otomatik İşlemi Değiştir",
+    "pl": "🛡 Przełącz auto-handel",
+    "de": "🛡 Auto-Trade umschalten"
+  },
+  "mcp.btnClaudeCfg": {
+    "en": "📋 Claude Desktop Config",
+    "zh-hans": "📋 Claude Desktop 配置",
+    "zh-hant": "📋 Claude Desktop 配置",
+    "vi": "📋 Cấu hình Claude Desktop",
+    "ru": "📋 Конфиг Claude Desktop",
+    "ko": "📋 Claude Desktop 설정",
+    "ja": "📋 Claude Desktop 設定",
+    "es": "📋 Configuración Claude Desktop",
+    "tr": "📋 Claude Desktop Yapılandırması",
+    "pl": "📋 Konfiguracja Claude Desktop",
+    "de": "📋 Claude Desktop Konfiguration"
+  },
+  "mcp.btnCursorCfg": {
+    "en": "📋 Cursor / IDE Config",
+    "zh-hans": "📋 Cursor / Antigravity 配置",
+    "zh-hant": "📋 Cursor / Antigravity 配置",
+    "vi": "📋 Cấu hình Cursor / IDE",
+    "ru": "📋 Конфиг Cursor / IDE",
+    "ko": "📋 Cursor / IDE 설정",
+    "ja": "📋 Cursor / IDE 設定",
+    "es": "📋 Configuración Cursor / IDE",
+    "tr": "📋 Cursor / IDE Yapılandırması",
+    "pl": "📋 Konfiguracja Cursor / IDE",
+    "de": "📋 Cursor / IDE Konfiguration"
+  },
+  "mcp.btnToolsList": {
+    "en": "🛠 View 14 MCP Tools",
+    "zh-hans": "🛠 查看 14 项 MCP 工具清单",
+    "zh-hant": "🛠 查看 14 項 MCP 工具清單",
+    "vi": "🛠 Xem danh sách 14 công cụ MCP",
+    "ru": "🛠 Список 14 инструментов MCP",
+    "ko": "🛠 14개 MCP 도구 목록 확인",
+    "ja": "🛠 14種類のMCPツール一覧",
+    "es": "🛠 Ver 14 herramientas MCP",
+    "tr": "🛠 14 MCP Aracını Gör",
+    "pl": "🛠 Zobacz 14 narzędzi MCP",
+    "de": "🛠 14 MCP-Tools anzeigen"
+  },
 
   // --- 底部 3 个并排快捷按键 ---
   "dock.mainMenu": {
@@ -2095,21 +2316,29 @@ export class I18nService {
     }
   }
 
-  public static btnFreeSourceCode(lang: string): string {
+  public static btnMonitorBroadcast(lang: string): string {
     const l = this.normalizeLang(lang);
     switch (l) {
-      case 'zh-hans': return '🎁 免费源码获取';
-      case 'zh-hant': return '🎁 免費源碼獲取';
-      case 'vi': return '🎁 Nhận mã nguồn miễn phí';
-      case 'ru': return '🎁 Бесплатный исходный код';
-      case 'ko': return '🎁 무료 소스코드 받기';
-      case 'ja': return '🎁 無料ソースコード取得';
-      case 'es': return '🎁 Obtener código fuente gratis';
-      case 'tr': return '🎁 Ücretsiz Kaynak Kodu Al';
-      case 'pl': return '🎁 Pobierz darmowy kod źródłowy';
-      case 'de': return '🎁 Kostenlosen Quellcode erhalten';
-      default: return '🎁 Get Free Source Code';
+      case 'zh-hans': return '监听群发';
+      case 'zh-hant': return '監聽群發';
+      case 'vi': return 'Giám sát & Gửi hàng loạt';
+      case 'ru': return 'Мониторинг и Рассылка';
+      case 'ko': return '모니터링 및 대량발송';
+      case 'ja': return '監視＆一斉送信';
+      case 'es': return 'Monitoreo y Difusión';
+      case 'tr': return 'İzleme ve Toplu Mesaj';
+      case 'pl': return 'Monitorowanie i Masowa wysyłka';
+      case 'de': return 'Monitoring & Massenversand';
+      default: return 'Monitor & Broadcast';
     }
+  }
+
+  public static btnFreeSourceCode(lang: string): string {
+    return this.btnMonitorBroadcast(lang);
+  }
+
+  public static btnMcp(lang: string): string {
+    return this.t('btn.mcp', lang);
   }
 
   public static btnAutoTradeBot(lang: string): string {
