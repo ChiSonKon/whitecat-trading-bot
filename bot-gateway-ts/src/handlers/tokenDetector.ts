@@ -3,6 +3,7 @@ import { TokenMarketService } from '../services/tokenMarketService.js';
 import { TradeMenu } from '../menus/tradeMenu.js';
 import { MainMenu } from './../menus/mainMenu.js';
 import { WalletEntry } from '../menus/walletMenu.js';
+import { TokenKeyHelper } from '../services/tokenKeyHelper.js';
 
 export function getChainAccountUrl(chain: string, address: string): string {
   const c = chain.toLowerCase();
@@ -43,8 +44,8 @@ export class TokenDetector {
       return { isContract: true, type: 'sui', address: moveMatch[0] };
     }
 
-    // 4. 匹配 TON User-Friendly 地址 (EQ 或 UQ 开头 + 46位 Base64)
-    const tonMatch = trimmed.match(/^(EQ|UQ)[a-zA-Z0-9_-]{46}$/);
+    // 4. 匹配 TON User-Friendly 地址 (EQ, UQ, kQ, 0Q, Ef 开头 + 46位 Base64) 或原始地址 0: / -1:
+    const tonMatch = trimmed.match(/^(EQ|UQ|kQ|0Q|Ef)[a-zA-Z0-9_-]{46}$/) || trimmed.match(/^(-1|0):[a-fA-F0-9]{64}$/);
     if (tonMatch) {
       return { isContract: true, type: 'ton', address: tonMatch[0] };
     }
@@ -56,6 +57,50 @@ export class TokenDetector {
     }
 
     return { isContract: false, type: null, address: '' };
+  }
+
+  public static isEvmChain(chain: string): boolean {
+    const c = chain.toLowerCase();
+    return ['ethereum', 'bsc', 'base', 'robinhood', 'xlayer', 'sei'].includes(c);
+  }
+
+  public static isChainCompatible(chain: string, detectedType: 'evm' | 'solana' | 'sui' | 'aptos' | 'ton' | null): boolean {
+    const c = chain.toLowerCase();
+    if (!detectedType) return false;
+    if (detectedType === 'evm') {
+      return this.isEvmChain(c);
+    }
+    if (detectedType === 'ton') {
+      return c === 'ton';
+    }
+    if (detectedType === 'solana') {
+      return c === 'solana';
+    }
+    if (detectedType === 'sui') {
+      return c === 'sui' || c === 'aptos';
+    }
+    if (detectedType === 'aptos') {
+      return c === 'aptos' || c === 'sui';
+    }
+    return false;
+  }
+
+  public static isValidWalletAddressForChain(chain: string, address: string): boolean {
+    const c = chain.toLowerCase();
+    const trimmed = address.trim();
+    if (this.isEvmChain(c)) {
+      return /^0x[a-fA-F0-9]{40}$/i.test(trimmed);
+    }
+    if (c === 'solana') {
+      return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed) && !trimmed.startsWith('0x');
+    }
+    if (c === 'ton') {
+      return /^(EQ|UQ|kQ|0Q|Ef)[a-zA-Z0-9_-]{46}$/.test(trimmed) || /^(-1|0):[a-fA-F0-9]{64}$/.test(trimmed);
+    }
+    if (c === 'sui' || c === 'aptos') {
+      return /^0x[a-fA-F0-9]{64}$/i.test(trimmed) && !trimmed.includes('::');
+    }
+    return false;
   }
 
   public static async analyzeAndBuildView(
@@ -82,17 +127,50 @@ export class TokenDetector {
     const market = await TokenMarketService.fetchTokenDetails(tokenAddress, chain);
     const activeWallet = wallets.find(w => w.isDefault) || wallets[0];
 
+    // A. 跨链归属判定：如果代币在当前所选链无交易对，但在其它链检测到了有效流动池
+    if (market.foundOnCurrentChain === false && market.actualChainId && market.actualChainId !== chain.toLowerCase()) {
+      const isZh = lang === 'zh-hans' || lang === 'zh-hant';
+      const currentChainName = MainMenu.getChainDisplayName(chain);
+      const targetChain = market.actualChainId;
+      const targetChainName = MainMenu.getChainDisplayName(targetChain);
+      const tokenKey = TokenKeyHelper.register(tokenAddress);
+
+      const text = isZh
+        ? `⚠️ <b>代币所属公链提示 (Cross-Chain Notice)</b>\n\n` +
+          `🌐 当前所选公链: <b>${currentChainName}</b>\n` +
+          `🦄 识别代币: <b>${market.name} (${market.symbol})</b>\n` +
+          `📝 合约地址:\n<code>${tokenAddress}</code>\n\n` +
+          `💡 该代币在当前 <b>${currentChainName}</b> 链上未检测到流动性池，其实际交易对位于 <b>${targetChainName}</b>。\n` +
+          `是否立即切换至 <b>${targetChainName}</b> 链进行交易？`
+        : `⚠️ <b>Token Chain Mismatch</b>\n\n` +
+          `🌐 Current Chain: <b>${currentChainName}</b>\n` +
+          `🦄 Detected Token: <b>${market.name} (${market.symbol})</b>\n` +
+          `📝 Contract Address:\n<code>${tokenAddress}</code>\n\n` +
+          `💡 No liquidity pair found on <b>${currentChainName}</b>. This token is actively traded on <b>${targetChainName}</b>.\n` +
+          `Would you like to switch to <b>${targetChainName}</b> now?`;
+
+      const keyboard = new InlineKeyboard()
+        .text(isZh ? `🔄 切换至 ${targetChainName} 交易 ${market.symbol}` : `🔄 Switch to ${targetChainName} & Trade ${market.symbol}`, `switch_to_${targetChain}_${tokenKey}`)
+        .row()
+        .text(isZh ? `🌐 切换其它公链` : `🌐 Switch Chain`, 'menu_switch_chain')
+        .text(isZh ? `🔙 返回主菜单` : `🔙 Return`, 'menu_main');
+
+      return { hasWallet: true, text, keyboard };
+    }
+
     // 智能判定：是否为普通钱包地址 (而非代币合约)
-    // 1) Sui / Aptos 链：Move 代币必含 '::' (如 0x...::coin::COIN)。不含 '::' 且 DexScreener 无流动池的均为钱包地址
-    // 2) 其它公链：DexScreener 无流动池且无价格，且符合钱包/账号地址格式的，一律智能识别为钱包地址
+    // 1) Sui / Aptos 链：Move 代币必含 '::'。不含 '::' 且 DexScreener 无流动池且符合 32 字节地址的为钱包地址
+    // 2) 其它公链：DexScreener 无流动池且无价格，且符合当前链专属钱包地址格式的，一律智能识别为钱包地址
+    const isChainWallet = this.isValidWalletAddressForChain(chain, tokenAddress);
     const isSuiWallet = (chain.toLowerCase() === 'sui' || chain.toLowerCase() === 'aptos') &&
       !tokenAddress.includes('::') &&
-      (!market.pairAddress || market.name === 'Unknown Token' || market.priceNative === 0);
+      (!market.pairAddress || market.name === 'Unknown Token' || market.priceNative === 0) &&
+      isChainWallet;
 
     const isGeneralWallet = !market.pairAddress &&
       market.name === 'Unknown Token' &&
       market.priceNative === 0 &&
-      (tokenAddress.startsWith('0x') || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(tokenAddress));
+      isChainWallet;
 
     if (isSuiWallet || isGeneralWallet) {
       const isZh = lang === 'zh-hans' || lang === 'zh-hant';

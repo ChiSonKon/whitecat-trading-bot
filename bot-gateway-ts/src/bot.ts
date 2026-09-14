@@ -62,6 +62,12 @@ function resolveChainForToken(tokenAddress: string, userActiveChain: string = 'b
   if (detection.type === 'ton') {
     return 'ton';
   }
+  if (detection.type === 'evm') {
+    if (TokenDetector.isEvmChain(userActiveChain)) {
+      return userActiveChain.toLowerCase();
+    }
+    return 'ethereum';
+  }
   return userActiveChain.toLowerCase();
 }
 
@@ -562,6 +568,55 @@ bot.on('callback_query:data', async ctx => {
       reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang),
       parse_mode: 'HTML'
     });
+  }
+
+  // B.2 确认切换具体链并直接打开代币交易面板 (跨链代币一键跳转)
+  if (data.startsWith('switch_to_')) {
+    const raw = data.replace('switch_to_', '');
+    const parts = raw.split('_');
+    const targetChain = parts[0]?.toLowerCase();
+    const tokenKey = parts.slice(1).join('_');
+
+    if (targetChain) {
+      user.activeChain = targetChain;
+      user.onboarded = true;
+      saveUserStore();
+
+      let targetWallets = getUserWallets(user, targetChain);
+      if (targetWallets.length === 0) {
+        await createWalletForUser(user, targetChain);
+        targetWallets = getUserWallets(user, targetChain);
+      }
+      await syncWalletBalances(user, targetChain);
+
+      const resolvedAddress = TokenKeyHelper.toAddress(tokenKey);
+      const botUser = bot.botInfo?.username || 'whitecat_doge_yr3ybv_bot';
+      const { text: panelText, keyboard } = await TokenDetector.analyzeAndBuildView(
+        targetChain,
+        resolvedAddress,
+        targetWallets,
+        user.lang,
+        0, 0, 0, 0,
+        userId,
+        botUser
+      );
+
+      await ctx.answerCallbackQuery({
+        text: `✅ ${MainMenu.getChainDisplayName(targetChain)}`
+      });
+
+      try {
+        return ctx.editMessageText(panelText, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML'
+        });
+      } catch {
+        return ctx.reply(panelText, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML'
+        });
+      }
+    }
   }
 
   // C. 语言选择菜单
@@ -2365,6 +2420,68 @@ bot.on('message:text', async ctx => {
     if (detection.isContract || isPendingQuery) {
       user.pendingAction = undefined; // 清空 pending 状态
       const rawTarget = detection.isContract ? detection.address : text;
+
+      // 1. 严格拦截跨链格式不兼容的合约地址 (例如在 TON 链输入了 EVM 0x... 合约)
+      if (detection.isContract && !TokenDetector.isChainCompatible(user.activeChain, detection.type)) {
+        const queryChain = detection.type === 'evm' ? 'ethereum' : (detection.type || 'bsc');
+        const market = await TokenMarketService.fetchTokenDetails(rawTarget, queryChain);
+        const currentChainName = MainMenu.getChainDisplayName(user.activeChain);
+        const tokenKey = TokenKeyHelper.register(rawTarget);
+
+        if (market.name !== 'Unknown Token' || market.pairAddress || market.priceUsd > 0) {
+          const actualTargetChain = market.actualChainId || queryChain;
+          const actualChainName = MainMenu.getChainDisplayName(actualTargetChain);
+
+          const switchBtnText = I18nService.t('btn.switchToChainAndTrade', user.lang, {
+            chain: actualChainName,
+            symbol: market.symbol || 'TOKEN'
+          });
+
+          const msgText = I18nService.t('msg.tokenOnOtherChain', user.lang, {
+            currentChain: currentChainName,
+            targetChain: actualChainName,
+            tokenName: market.name,
+            symbol: market.symbol,
+            address: rawTarget
+          });
+
+          const keyboard = new InlineKeyboard()
+            .text(switchBtnText, `switch_to_${actualTargetChain}_${tokenKey}`)
+            .row()
+            .text(isZh ? '🌐 切换其它公链' : '🌐 Switch Chain', 'menu_switch_chain')
+            .text(isZh ? '🔙 返回主菜单' : '🔙 Main Menu', 'menu_main');
+
+          return ctx.reply(msgText, {
+            reply_markup: keyboard,
+            parse_mode: 'HTML'
+          });
+        }
+
+        const typeLabelMap: Record<string, string> = {
+          evm: 'EVM (0x...)',
+          ton: 'TON (Jetton)',
+          solana: 'Solana (Base58)',
+          sui: 'Sui (Move)',
+          aptos: 'Aptos (Move)'
+        };
+        const typeLabel = typeLabelMap[detection.type || ''] || (detection.type?.toUpperCase() || 'Other');
+
+        const mismatchMsg = I18nService.t('msg.chainMismatch', user.lang, {
+          currentChain: currentChainName,
+          address: rawTarget,
+          detectedType: typeLabel
+        });
+
+        const keyboard = new InlineKeyboard()
+          .text(isZh ? '🌐 切换公链' : '🌐 Switch Chain', 'menu_switch_chain')
+          .text(isZh ? '🔙 返回主菜单' : '🔙 Main Menu', 'menu_main');
+
+        return ctx.reply(mismatchMsg, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML'
+        });
+      }
+
       const resolvedAddress = TokenKeyHelper.toAddress(rawTarget);
       const targetChain = resolveChainForToken(resolvedAddress, user.activeChain);
       const currentWallets = getUserWallets(user, targetChain);

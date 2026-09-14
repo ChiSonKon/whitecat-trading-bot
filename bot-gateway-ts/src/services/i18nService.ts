@@ -2062,6 +2062,58 @@ const dict: Record<string, Record<string, string>> = {
     "tr": "⚠️ Geçersiz biçim.",
     "pl": "⚠️ Nieprawidłowy format.",
     "de": "⚠️ Ungültiges Format."
+  },
+  "msg.tipSendCA": {
+    "en": "💡 Tip: Send a token contract address (CA) or wallet address to inspect market data and trade.",
+    "zh-hans": "💡 提示：请直接发送代币合约地址 (CA) 或目标钱包地址，白猫将自动为您解析行情与交易面板。",
+    "zh-hant": "💡 提示：請直接發送代幣合約地址 (CA) 或目標錢包地址，白貓將自動為您解析行情與交易面板。",
+    "vi": "💡 Gợi ý: Gửi địa chỉ hợp đồng token (CA) hoặc địa chỉ ví để xem thị trường và giao dịch.",
+    "ru": "💡 Подсказка: Отправьте адрес контракта токена (CA) или адрес кошелька для анализа и торговли.",
+    "ko": "💡 팁: 토큰 계약 주소(CA) 또는 지갑 주소를 보내 시장 분석 및 거래를 진행하세요.",
+    "ja": "💡 ヒント: トークンコントラクトアドレス(CA)またはウォレットアドレスを送信してください。",
+    "es": "💡 Consejo: Envíe la dirección del contrato del token (CA) o billetera para operar.",
+    "tr": "💡 İpucu: Piyasa verilerini incelemek ve işlem yapmak için bir token sözleşme adresi (CA) veya cüzdan adresi gönderin.",
+    "pl": "💡 Wskazówka: Wyślij adres kontraktu tokena (CA) lub portfela, aby sprawdzić rynek i handlować.",
+    "de": "💡 Tipp: Senden Sie eine Token-Vertragsadresse (CA) oder Wallet-Adresse, um Marktdaten zu prüfen und zu handeln."
+  },
+  "msg.chainMismatch": {
+    "en": "⚠️ <b>Token address mismatch with current chain</b>\n\n🌐 Current Chain: <b>{currentChain}</b>\n📝 Input Address: <code>{address}</code>\n🔍 Detected Type: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> network does not support this address format. Please switch to the appropriate chain!",
+    "zh-hans": "⚠️ <b>代币合约与当前公链不匹配</b>\n\n🌐 当前公链: <b>{currentChain}</b>\n📝 输入地址: <code>{address}</code>\n🔍 检测格式: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> 公链不支持此格式地址。请切换至对应公链后再试！",
+    "zh-hant": "⚠️ <b>代幣合約與當前公鏈不匹配</b>\n\n🌐 當前公鏈: <b>{currentChain}</b>\n📝 輸入地址: <code>{address}</code>\n🔍 檢測格式: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> 公鏈不支持此格式地址。請切換至對應公鏈後再試！",
+    "vi": "⚠️ <b>Hợp đồng token không khớp với chuỗi hiện tại</b>\n\n🌐 Chuỗi hiện tại: <b>{currentChain}</b>\n📝 Địa chỉ: <code>{address}</code>\n🔍 Loại phát hiện: <b>{detectedType}</b>\n\n💡 Chuỗi <b>{currentChain}</b> không hỗ trợ định dạng này. Vui lòng chuyển mạng!",
+    "ru": "⚠️ <b>Контракт токена не соответствует текущей сети</b>\n\n🌐 Текущая сеть: <b>{currentChain}</b>\n📝 Адрес: <code>{address}</code>\n🔍 Обнаружен: <b>{detectedType}</b>\n\n💡 Сеть <b>{currentChain}</b> не поддерживает данный формат адреса.",
+    "ko": "⚠️ <b>토큰 계약 주소가 현재 체인과 일치하지 않습니다</b>\n\n🌐 현재 체인: <b>{currentChain}</b>\n📝 입력 주소: <code>{address}</code>\n🔍 감지된 유형: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> 체인은 이 주소 형식을 지원하지 않습니다. 체인을 전환하세요!",
+    "ja": "⚠️ <b>トークンコントラクトが現在のチェーンと一致しません</b>\n\n🌐 現在のチェーン: <b>{currentChain}</b>\n📝 入力アドレス: <code>{address}</code>\n🔍 検出形式: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> はこのアドレス形式をサポートしていません。チェーンを切り替えてください！",
+    "es": "⚠️ <b>El contrato del token no coincide con la cadena actual</b>\n\n🌐 Cadena actual: <b>{currentChain}</b>\n📝 Dirección: <code>{address}</code>\n🔍 Tipo detectado: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> no admite este formato de dirección. ¡Cambie de cadena!",
+    "tr": "⚠️ <b>Token sözleşmesi mevcut ağ ile eşleşmiyor</b>\n\n🌐 Mevcut Ağ: <b>{currentChain}</b>\n📝 Girilen Adres: <code>{address}</code>\n🔍 Algılanan Tür: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> bu adres formatını desteklemiyor. Lütfen uygun ağa geçin!",
+    "pl": "⚠️ <b>Kontrakt tokena nie pasuje do bieżącej sieci</b>\n\n🌐 Bieżąca sieć: <b>{currentChain}</b>\n📝 Adres: <code>{address}</code>\n🔍 Wykryty typ: <b>{detectedType}</b>\n\n💡 Sieć <b>{currentChain}</b> nie obsługuje tego formatu adresu. Przełącz sieć!",
+    "de": "⚠️ <b>Token-Vertrag stimmt nicht mit der aktuellen Chain überein</b>\n\n🌐 Aktuelle Chain: <b>{currentChain}</b>\n📝 Adresse: <code>{address}</code>\n🔍 Erkannter Typ: <b>{detectedType}</b>\n\n💡 <b>{currentChain}</b> unterstützt dieses Adressformat nicht. Bitte Chain wechseln!"
+  },
+  "msg.tokenOnOtherChain": {
+    "en": "⚠️ <b>Token belongs to another chain</b>\n\n🌐 Current Chain: <b>{currentChain}</b>\n🦄 Token: <b>{tokenName} ({symbol})</b>\n📝 Address: <code>{address}</code>\n\n💡 This token belongs to <b>{targetChain}</b>, and cannot be traded on <b>{currentChain}</b>.\nClick below to switch and trade!",
+    "zh-hans": "⚠️ <b>代币所属公链提示</b>\n\n🌐 当前公链: <b>{currentChain}</b>\n🦄 识别代币: <b>{tokenName} ({symbol})</b>\n📝 合约地址: <code>{address}</code>\n\n💡 该代币属于 <b>{targetChain}</b> 公链，无法在 <b>{currentChain}</b> 上交易。\n点击下方按钮可一键切换至对应公链进行交易！",
+    "zh-hant": "⚠️ <b>代幣所屬公鏈提示</b>\n\n🌐 當前公鏈: <b>{currentChain}</b>\n🦄 識別代幣: <b>{tokenName} ({symbol})</b>\n📝 合約地址: <code>{address}</code>\n\n💡 該代幣屬於 <b>{targetChain}</b> 公鏈，無法在 <b>{currentChain}</b> 上交易。\n點擊下方按鈕可一鍵切換至對應公鏈進行交易！",
+    "vi": "⚠️ <b>Thông báo mạng token</b>\n\n🌐 Mạng hiện tại: <b>{currentChain}</b>\n🦄 Token: <b>{tokenName} ({symbol})</b>\n📝 CA: <code>{address}</code>\n\n💡 Token này thuộc về mạng <b>{targetChain}</b>, không thể giao dịch trên <b>{currentChain}</b>.\nNhấp bên dưới để chuyển mạng và giao dịch!",
+    "ru": "⚠️ <b>Токен принадлежит другой сети</b>\n\n🌐 Текущая сеть: <b>{currentChain}</b>\n🦄 Токен: <b>{tokenName} ({symbol})</b>\n📝 Контракт: <code>{address}</code>\n\n💡 Этот токен принадлежит сети <b>{targetChain}</b> и не может торговаться на <b>{currentChain}</b>.\nНажмите ниже для переключения!",
+    "ko": "⚠️ <b>다른 체인 토큰 안내</b>\n\n🌐 현재 체인: <b>{currentChain}</b>\n🦄 토큰: <b>{tokenName} ({symbol})</b>\n📝 계약 주소: <code>{address}</code>\n\n💡 이 토큰은 <b>{targetChain}</b> 체인에 속하며 <b>{currentChain}</b>에서 거래할 수 없습니다.\n아래를 눌러 전환 후 거래하세요!",
+    "ja": "⚠️ <b>別チェーンのトークンです</b>\n\n🌐 現在のチェーン: <b>{currentChain}</b>\n🦄 トークン: <b>{tokenName} ({symbol})</b>\n📝 コントラクト: <code>{address}</code>\n\n💡 このトークンは <b>{targetChain}</b> に属しており、<b>{currentChain}</b> では取引できません。\n以下をタップして切り替えてください！",
+    "es": "⚠️ <b>El token pertenece a otra cadena</b>\n\n🌐 Cadena actual: <b>{currentChain}</b>\n🦄 Token: <b>{tokenName} ({symbol})</b>\n📝 Contrato: <code>{address}</code>\n\n💡 Este token pertenece a <b>{targetChain}</b> y no se puede operar en <b>{currentChain}</b>.\n¡Haga clic abajo para cambiar y operar!",
+    "tr": "⚠️ <b>Token başka bir ağa aittir</b>\n\n🌐 Mevcut Ağ: <b>{currentChain}</b>\n🦄 Token: <b>{tokenName} ({symbol})</b>\n📝 Sözleşme: <code>{address}</code>\n\n💡 Bu token <b>{targetChain}</b> ağına aittir ve <b>{currentChain}</b> üzerinde işlem göremez.\nGeçiş yapmak için tıklayın!",
+    "pl": "⚠️ <b>Token należy do innej sieci</b>\n\n🌐 Bieżąca sieć: <b>{currentChain}</b>\n🦄 Token: <b>{tokenName} ({symbol})</b>\n📝 Kontrakt: <code>{address}</code>\n\n💡 Ten token należy do sieci <b>{targetChain}</b> i nie można nim handlować na <b>{currentChain}</b>.\nKliknij poniżej, aby przełączyć!",
+    "de": "⚠️ <b>Token gehört zu einer anderen Chain</b>\n\n🌐 Aktuelle Chain: <b>{currentChain}</b>\n🦄 Token: <b>{tokenName} ({symbol})</b>\n📝 Contract: <code>{address}</code>\n\n💡 Dieser Token gehört zu <b>{targetChain}</b> und kann nicht auf <b>{currentChain}</b> gehandelt werden.\nUnten klicken zum Wechseln!"
+  },
+  "btn.switchToChainAndTrade": {
+    "en": "🔄 Switch to {chain} & Trade {symbol}",
+    "zh-hans": "🔄 切换至 {chain} 交易 {symbol}",
+    "zh-hant": "🔄 切換至 {chain} 交易 {symbol}",
+    "vi": "🔄 Chuyển sang {chain} & Giao dịch {symbol}",
+    "ru": "🔄 Перейти на {chain} и торговать {symbol}",
+    "ko": "🔄 {chain}(으)로 전환하여 {symbol} 거래",
+    "ja": "🔄 {chain} に切り替えて {symbol} を取引",
+    "es": "🔄 Cambiar a {chain} y operar {symbol}",
+    "tr": "🔄 {chain} ağına geç ve {symbol} işlem yap",
+    "pl": "🔄 Przełącz na {chain} i handluj {symbol}",
+    "de": "🔄 Zu {chain} wechseln & {symbol} handeln"
   }
 };
 

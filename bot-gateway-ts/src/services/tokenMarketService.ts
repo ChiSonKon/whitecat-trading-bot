@@ -17,6 +17,8 @@ export interface TokenMarketData {
   dextoolsUrl: string;
   twitterUrl?: string;
   pairAddress?: string;
+  foundOnCurrentChain?: boolean;
+  actualChainId?: string;
 
   // --- Meme-Radar 增强量化指标 ---
   linkedHoldRate?: number;        // 关联老鼠仓占比 (0.0 - 1.0)
@@ -42,9 +44,10 @@ export class TokenMarketService {
 
     // 1. 查询 DexScreener 实时市场数据
     let pair: any = null;
+    let pairs: any[] = [];
     try {
       let dexRes = await httpClient.get(`https://api.dexscreener.com/latest/dex/tokens/${cleanAddress}`);
-      let pairs = dexRes.data?.pairs || [];
+      pairs = dexRes.data?.pairs || [];
       if (!pairs || pairs.length === 0) {
         // Fallback to DexScreener search API (useful for Sui package IDs or partial Move struct tags)
         try {
@@ -54,7 +57,7 @@ export class TokenMarketService {
       }
       // 优先匹配当前链的交易对
       const dexChainName = ['bsc', 'ethereum', 'base', 'solana', 'sui', 'ton', 'aptos'].includes(chainKey) ? chainKey : 'bsc';
-      pair = pairs.find((p: any) => p.chainId === dexChainName) || pairs[0];
+      pair = pairs.find((p: any) => p.chainId === dexChainName);
     } catch (e: any) {
       console.error(`[TokenMarketService] DexScreener fetch error for ${cleanAddress}: ${e.message}`);
     }
@@ -127,21 +130,27 @@ export class TokenMarketService {
     const signals = MemeRadarService.evaluateWalletSignals(cleanAddress, chainKey);
     const devRep = MemeRadarService.evaluateDevReputation(cleanAddress, chainKey);
 
+    const foundOnCurrentChain = !!pair;
+    const fallbackPair = pairs && pairs.length > 0 ? pairs[0] : null;
+    const actualChainId = foundOnCurrentChain ? chainKey : (fallbackPair?.chainId || undefined);
+
     return {
-      name: pair?.baseToken?.name || defaultName,
-      symbol: pair?.baseToken?.symbol || defaultSymbol,
+      name: pair?.baseToken?.name || fallbackPair?.baseToken?.name || defaultName,
+      symbol: pair?.baseToken?.symbol || fallbackPair?.baseToken?.symbol || defaultSymbol,
       address: cleanAddress,
-      priceUsd,
-      priceNative,
+      priceUsd: foundOnCurrentChain ? priceUsd : parseFloat(fallbackPair?.priceUsd || '0'),
+      priceNative: foundOnCurrentChain ? priceNative : parseFloat(fallbackPair?.priceNative || '0'),
       nativePriceUsd: nativePrice,
-      marketCapUsd,
+      marketCapUsd: foundOnCurrentChain ? marketCapUsd : parseFloat(fallbackPair?.marketCap || fallbackPair?.fdv || '0'),
       liquidityNative,
       holdersCount: '42.76K',
       riskLevel,
-      dexscreenerUrl: pair?.url || `https://dexscreener.com/${chainKey}/${cleanAddress}`,
+      dexscreenerUrl: pair?.url || fallbackPair?.url || `https://dexscreener.com/${chainKey}/${cleanAddress}`,
       dextoolsUrl: `https://www.dextools.io/app/cn/${chainKey}/pair-explorer/${pair?.pairAddress || cleanAddress}`,
       twitterUrl: twitter,
       pairAddress: pair?.pairAddress,
+      foundOnCurrentChain,
+      actualChainId,
 
       // Meme-Radar 增强字段
       linkedHoldRate: clusters.linkedHoldRate,
