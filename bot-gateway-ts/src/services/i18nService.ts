@@ -215,6 +215,97 @@ const dict: Record<string, Record<string, string>> = {
     "pl": "🤖 Dostęp Agenta MCP",
     "de": "🤖 MCP-Agent-Zugriff"
   },
+  "btn.radar": {
+    "en": "🔥 Meme Radar",
+    "zh-hans": "🔥 爆点雷达",
+    "zh-hant": "🔥 爆點雷達",
+    "vi": "🔥 Radar Meme",
+    "ru": "🔥 Радар Мемов",
+    "ko": "🔥 밈 레이더",
+    "ja": "🔥 ミームレーダー",
+    "es": "🔥 Radar de Memes",
+    "tr": "🔥 Meme Radarı",
+    "pl": "🔥 Radar Memów",
+    "de": "🔥 Meme-Radar"
+  },
+  "radar.title": {
+    "en": "Meme Radar · Real-time Candidates",
+    "zh-hans": "Meme 爆点雷达 · 实时候选榜",
+    "zh-hant": "Meme 爆點雷達 · 實時候選榜",
+    "vi": "Radar Meme · Danh sách theo dõi thời gian thực",
+    "ru": "Радар Мемов · Топ кандидатов в реальном времени",
+    "ko": "밈 레이더 · 실시간 후보 목록",
+    "ja": "ミームレーダー · リアルタイム候補一覧",
+    "es": "Radar de Memes · Candidatos en tiempo real",
+    "tr": "Meme Radarı · Gerçek Zamanlı Adaylar",
+    "pl": "Radar Memów · Kandydaci w czasie rzeczywistym",
+    "de": "Meme-Radar · Echtzeit-Kandidaten"
+  },
+  "radar.desc": {
+    "en": "Multi-chain alpha radar with linked insider cluster filtering, smart degen verification, and honeypot sandbox protection!",
+    "zh-hans": "智能聚合多链新星，经资金链路老鼠仓穿透、聪明钱/KOL 识别与貔貅深度沙盒验证后呈现！",
+    "zh-hant": "智能聚合多鏈新星，經資金鏈路老鼠倉穿透、聰明錢/KOL 識別與貔貅深度沙盒驗證後呈現！",
+    "vi": "Radar đa chuỗi với bộ lọc ví nội bộ, xác minh smart money và bảo vệ chống honeypot!",
+    "ru": "Мультичейн радар с фильтрацией инсайдерских кошельков, анализом умных денег и защитой от скама!",
+    "ko": "내부자 지갑 클러스터 필터링, 스마트머니 검증 및 허니팟 방지를 갖춘 멀티체인 알파 레이더!",
+    "ja": "インサイダークラスター除外、スマートマネー検証、ハニーポット防御を備えたマルチチェーンレーダー！",
+    "es": "¡Radar multichain con filtrado de insiders, verificación de smart money y sandbox anti-honeypot!",
+    "tr": "İçeriden küme filtreleme, akıllı para doğrulaması ve honeypot korumalı çok zincirli radar!",
+    "pl": "Wielosieciowy radar z filtrowaniem klastrów insiderów, weryfikacją smart money i ochroną przed honeypotem!",
+    "de": "Multi-Chain-Radar mit Insider-Cluster-Filterung, Smart-Money-Prüfung und Honeypot-Schutz!"
+  },
+  "radar.empty": {
+    "en": "No candidates currently meeting strict safety and volume criteria. Please refresh shortly.",
+    "zh-hans": "暂未发现满足当前安全与流动性要求的优质候选，请稍后刷新。",
+    "zh-hant": "暫未發現滿足當前安全與流動性要求的優質候選，請稍後刷新。",
+    "vi": "Chưa tìm thấy token nào đạt tiêu chuẩn an toàn và thanh khoản. Vui lòng làm mới.",
+    "ru": "Подходящих токенов по строгим критериям пока не найдено. Обновите позже.",
+    "ko": "엄격한 안전 및 유동성 기준을 충족하는 후보가 없습니다. 잠시 후 새로고침하세요.",
+    "ja": "厳格な安全基準と流動性を満たす候補が現在ありません。更新してください。",
+    "es": "No se encontraron candidatos que cumplan los filtros de seguridad. Actualice pronto.",
+    "tr": "Güvenlik kriterlerini karşılayan aday bulunamadı. Lütfen yenileyin.",
+    "pl": "Brak kandydatów spełniających kryteria bezpieczeństwa. Odśwież za chwilę.",
+    "de": "Keine Kandidaten gefunden, die den Sicherheitskriterien entsprechen. Bitte aktualisieren."
+  },
+  "radar.btnRefresh": {
+    "en": "🔄 Refresh Radar",
+    "zh-hans": "🔄 刷新雷达",
+    "zh-hant": "🔄 刷新雷達",
+    "vi": "🔄 Làm mới Radar",
+    "ru": "🔄 Обновить радар",
+    "ko": "🔄 레이더 새로고침",
+    "ja": "🔄 レーダー更新",
+    "es": "🔄 Actualizar radar",
+    "tr": "🔄 Radarı Yenile",
+    "pl": "🔄 Odśwież radar",
+    "de": "🔄 Radar aktualisieren"
+  },
+  "radar.kolWarning": {
+    "en": "Warning: Suspected KOL-only pump (lacks on-chain smart money)",
+    "zh-hans": "警惕：疑似纯 KOL 推广喊单盘 (缺乏链上聪明钱底仓)",
+    "zh-hant": "警惕：疑似純 KOL 推廣喊單盤 (缺乏鏈上聰明錢底倉)",
+    "vi": "Cảnh báo: Nghi ngờ KOL shill xả hàng (thiếu ví smart money)",
+    "ru": "Внимание: подозрение на памп от KOL (нет умных денег)",
+    "ko": "경고: 순수 인플루언서 펌핑 의심 (스마트머니 미보유)",
+    "ja": "警告: インフルエンサー単独煽り疑惑 (スマートマネー不在)",
+    "es": "Alerta: Sospecha de bombeo solo por KOL (sin smart money)",
+    "tr": "Uyarı: Yalnızca KOL pompalaması şüphesi (akıllı para yok)",
+    "pl": "Uwaga: Podejrzenie pumpu przez KOL (brak smart money)",
+    "de": "Warnung: Verdacht auf reinen KOL-Pump (kein Smart Money)"
+  },
+  "radar.footerTip": {
+    "en": "Click any token button above to launch the instant trading console.",
+    "zh-hans": "点击上方代币按钮可一键呼出快捷买卖控制台。",
+    "zh-hant": "點擊上方代幣按鈕可一鍵呼出快捷買賣控制台。",
+    "vi": "Nhấn nút token phía trên để mở bảng điều khiển giao dịch nhanh.",
+    "ru": "Нажмите на кнопку токена выше, чтобы открыть панель торговли.",
+    "ko": "위 토큰 버튼을 클릭하여 빠른 거래 콘솔을 실행하세요.",
+    "ja": "上のトークンボタンをクリックして高速取引コンソールを起動します。",
+    "es": "Haga clic en un token arriba para abrir la consola de compra rápida.",
+    "tr": "Hızlı işlem konsolunu başlatmak için yukarıdaki token butonuna tıklayın.",
+    "pl": "Kliknij przycisk tokena powyżej, aby otworzyć konsolę szybkiego handlu.",
+    "de": "Klicken Sie oben auf einen Token-Button, um das Schnell-Handelsmenü zu öffnen."
+  },
   "mcp.title": {
     "en": "WhiteCat MCP Agent Gateway",
     "zh-hans": "白猫打狗 MCP 智能体接入网关",
@@ -398,17 +489,17 @@ const dict: Record<string, Record<string, string>> = {
     "de": "📋 Cursor / IDE Konfiguration"
   },
   "mcp.btnToolsList": {
-    "en": "🛠 View 14 MCP Tools",
-    "zh-hans": "🛠 查看 14 项 MCP 工具清单",
-    "zh-hant": "🛠 查看 14 項 MCP 工具清單",
-    "vi": "🛠 Xem danh sách 14 công cụ MCP",
-    "ru": "🛠 Список 14 инструментов MCP",
-    "ko": "🛠 14개 MCP 도구 목록 확인",
-    "ja": "🛠 14種類のMCPツール一覧",
-    "es": "🛠 Ver 14 herramientas MCP",
-    "tr": "🛠 14 MCP Aracını Gör",
-    "pl": "🛠 Zobacz 14 narzędzi MCP",
-    "de": "🛠 14 MCP-Tools anzeigen"
+    "en": "🛠 View 16 MCP Tools",
+    "zh-hans": "🛠 查看 16 项 MCP 工具清单",
+    "zh-hant": "🛠 查看 16 項 MCP 工具清單",
+    "vi": "🛠 Xem danh sách 16 công cụ MCP",
+    "ru": "🛠 Список 16 инструментов MCP",
+    "ko": "🛠 16개 MCP 도구 목록 확인",
+    "ja": "🛠 16種類のMCPツール一覧",
+    "es": "🛠 Ver 16 herramientas MCP",
+    "tr": "🛠 16 MCP Aracını Gör",
+    "pl": "🛠 Zobacz 16 narzędzi MCP",
+    "de": "🛠 16 MCP-Tools anzeigen"
   },
 
   // --- 底部 3 个并排快捷按键 ---
@@ -2339,6 +2430,10 @@ export class I18nService {
 
   public static btnMcp(lang: string): string {
     return this.t('btn.mcp', lang);
+  }
+
+  public static btnRadar(lang: string): string {
+    return this.t('btn.radar', lang);
   }
 
   public static btnAutoTradeBot(lang: string): string {

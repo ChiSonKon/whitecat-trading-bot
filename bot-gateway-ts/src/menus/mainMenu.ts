@@ -78,7 +78,8 @@ export class MainMenu {
         .row()
         .text(I18nService.btnSwitchChain(lang), 'chain_change')
         .row()
-        .text(I18nService.btnMcp(lang), 'menu_mcp');
+        .text(I18nService.btnMcp(lang), 'menu_mcp')
+        .text(I18nService.btnRadar(lang), 'menu_radar');
       return kb;
     }
 
@@ -103,8 +104,9 @@ export class MainMenu {
       .text(langLabel, 'lang')
       .text(I18nService.btnSwitchChain(lang), 'chain_change')
       .row()
-      // Row 6: 🤖 MCP 智能体接入 (MCP Agent Integration)
+      // Row 6: 🤖 MCP 智能体接入 & 🔥 爆点雷达
       .text(I18nService.btnMcp(lang), 'menu_mcp')
+      .text(I18nService.btnRadar(lang), 'menu_radar')
       .row()
       // Row 7: 监听群发 (@wchjbot)
       .url(I18nService.btnMonitorBroadcast(lang), 'https://t.me/wchjbot')

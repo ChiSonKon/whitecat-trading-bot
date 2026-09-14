@@ -107,7 +107,7 @@ export class McpMenu {
 
   public static renderToolsList(lang: string = 'en'): string {
     return (
-      `🛠 <b>${I18nService.t('mcp.toolsTitle', lang)} (共 14 项核心工具)</b>\n\n` +
+      `🛠 <b>${I18nService.t('mcp.toolsTitle', lang)} (共 16 项核心工具)</b>\n\n` +
       `1. <code>whitecat_get_account_info</code>\n   - 获取用户活跃公链、钱包列表、链上原生余额与持仓\n` +
       `2. <code>whitecat_switch_chain</code>\n   - 切换 10 条公链 (BSC, Sui, Solana, Base, ETH, Robinhood 等)\n` +
       `3. <code>whitecat_query_token_market</code>\n   - 实时行情：价格、市值、流动性、24h成交量及 DexScreener 链接\n` +
@@ -121,7 +121,9 @@ export class McpMenu {
       `11. <code>whitecat_cancel_limit_order</code>\n   - 撤销指定限价单\n` +
       `12. <code>whitecat_list_copy_targets</code>\n   - 查询跟单监控的目标巨鲸钱包列表\n` +
       `13. <code>whitecat_add_copy_target</code>\n   - 添加新的跟单目标地址\n` +
-      `14. <code>whitecat_get_transactions</code>\n   - 查询最近交易与狙击账单历史及区块链浏览器 TX 哈希`
+      `14. <code>whitecat_get_transactions</code>\n   - 查询最近交易与狙击账单历史及区块链浏览器 TX 哈希\n` +
+      `15. <code>whitecat_scan_meme_radar</code>\n   - Meme 爆点雷达：实时多链搜狗，自动排除老鼠仓与 KOL 接盘陷阱\n` +
+      `16. <code>whitecat_audit_wallet_clusters</code>\n   - 资金链路聚类审计：穿透持仓注资祖先，计算真实合谋老鼠仓与 Dev 信用画像`
     );
   }
 }

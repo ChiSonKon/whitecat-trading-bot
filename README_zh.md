@@ -50,7 +50,8 @@
 - ⚡ **极致时延**：Rust 异步交易引擎，链上签名与广播准备时延 `< 15ms`。
 - 🌐 **10 链矩阵**：原生打通 Robinhood Chain、Solana、Base、BSC、Sui、TON、Ethereum、Sei、XLayer、Aptos。
 - 🛡 **全天候风控**：内置 Honeypot（貔貅盘）沙盒模拟、买卖税拦截、防夹（Anti-MEV / Jito Bundle）与恶意代码扫描。
-- 🤖 **MCP 智能体生态**：支持 STDIO 与 HTTP/SSE 双模传输协议，提供 14 项标准化交易与风控工具。
+- 🤖 **MCP 智能体生态**：支持 STDIO 与 HTTP/SSE 双模传输协议，提供 16 项标准化交易与风控工具。
+- 🔥 **爆点雷达与老鼠仓穿透**：全链实时爆点挖掘，资金链路同源聚类（穿透庄家/Dev 分仓老鼠仓），聪明钱与 KOL 喊单接盘陷阱识别，开发者发币信用画像。
 - 🎯 **一键智能交易**：发送合约地址（CA）毫秒级自动解析行情、安全评级，一键买入、快捷防跑卖出、移动追踪止盈止损。
 - 👥 **聪明钱跟单**：毫秒级监听巨鲸与聪明钱钱包，支持按比例跟买跟卖与防砸盘（Anti-Dump）急救。
 - 🌍 **全球化国际化**：全平台原生无缝支持 11 种国际语言（中简、中繁、英、越、俄、韩、日、西、土、波、德）。
@@ -106,11 +107,15 @@ whitecat-trading-bot/
 │       ├── mcp/                               # 🤖 MCP (Model Context Protocol) 智能体双模服务
 │       │   ├── index.ts                       # STDIO 模式入口
 │       │   ├── sseServer.ts                   # HTTP/SSE 模式服务 (端口 38088)
-│       │   ├── mcpServer.ts                   # 14 项 MCP 交易与风控工具注册
-│       │   └── tools/                         # MCP 工具具体实现
-│       ├── menus/                             # 1:1 像素级复现 PinkPunk 菜单 (钱包/交易/跟单/MCP)
+│       │   ├── mcpServer.ts                   # 16 项 MCP 交易、风控与雷达工具注册
+│       │   └── tools/                         # MCP 工具具体实现 (含雷达与老鼠仓审计)
+│       ├── menus/                             # 1:1 像素级复现 PinkPunk 菜单 (钱包/交易/跟单/雷达/MCP)
+│       │   ├── radarMenu.ts                   # 🔥 爆点雷达实时排行榜面板
+│       │   └── ...
 │       ├── handlers/tokenDetector.ts          # 聊天框发送 CA 毫秒级识别并弹出买卖控制台
-│       └── services/                          # 用户状态存储、多链余额与 PnL 海报渲染
+│       └── services/                          # 用户状态存储、多链余额、Meme 雷达与 PnL 海报
+│           ├── memeRadarService.ts            # 🔥 爆点雷达、老鼠仓同源穿透与聪明钱画像
+│           └── ...
 ├── sentry-detector-go/                        # 【哨兵 3】风控哨兵与聪明钱雷达 (Go)
 │   ├── go.mod
 │   ├── main.go                                # 哨兵服务主入口
@@ -121,8 +126,28 @@ whitecat-trading-bot/
 │   ├── build_all.sh                           # 一键编译全套三大微服务二进制
 │   └── start_dev.sh                           # 一键在本地启动开发全链路
 └── tests/
-    └── test_e2e_flow.py                       # 端到端全链路自动化仿真测试套件
+    ├── test_e2e_flow.py                       # 端到端全链路自动化仿真测试套件
+    └── test_radar_integration.ts              # 爆点雷达与 16 项 MCP 工具全量自动化测试
 ```
+
+---
+
+## 🔥 爆点雷达与老鼠仓穿透审计系统
+
+本项目深度吸纳链上先锋算法，原生内置 **Meme 爆点雷达与老鼠仓穿透审计引擎** (`src/services/memeRadarService.ts`)：
+
+1. 🎯 **多维量化综合评分体系 (0-100 分)**：
+   - 深度权衡池子早期流动性、5 分钟换手速度、2 万~15 万美元黄金爆发市值区间。
+   - 动态赋权聪明钱底仓，严厉扣减庄家砸盘、貔貅税率及同源分仓老鼠仓。
+2. 🧬 **资金链路聚类老鼠仓穿透 (Linked Wallet Clustering)**：
+   - 穿透追踪链上巨鲸与持仓前 20 钱包的初始原生代币注资祖先 (`from_address`)。
+   - 彻底揭开表面分散、实则同源的庄家/Dev 分仓老鼠仓假象 (`linkedHoldRate`)。
+3. 🪤 **聪明钱 vs KOL 喊单接盘盘识别 (Smart Degen vs KOL Trap)**：
+   - 区分“真聪明钱悄悄建仓”与“纯花钱请推特/TG 大V 喊单拉高出货”盘口 (`smartDegenCount <= 1 && renownedKolCount > 0`)。
+4. 👨‍💻 **发币团队人品全景画像 (Dev Reputation)**：
+   - 实时审计开发者历史发币总数、内盘毕业率（Graduation Rate）及当前持仓状态 (`HOLDING` 坚守还是 `EXITED` 提桶跑路)。
+5. 📱 **Telegram 雷达看板与一键狙击**：
+   - 指令 `/radar`、`/hot` 或主菜单【`🔥 爆点雷达`】直达。一键买入、快捷防跑卖出、实时刷新排行。
 
 ---
 
@@ -160,7 +185,7 @@ whitecat-trading-bot/
   - 🔑 独立安全令牌管理与一键重置。
   - 🛡 **智能体自主交易开关**（一键开启或关闭 Agent 的买卖权限，关闭时仅允许只读投研审计）。
   - ⚠️ **单笔最大交易限额防护**（杜绝 Agent 误操作或死循环超额扣款）。
-  - 📊 14 项 MCP 工具实时清单与 11 种国际语言无缝切换。
+  - 📊 16 项 MCP 工具实时清单与 11 种国际语言无缝切换。
 
 ---
 

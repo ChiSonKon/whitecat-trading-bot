@@ -73,7 +73,8 @@ In addition to full-suite Telegram trading features (sniping, copy-trading, limi
 
 - ⚡ **Sub-15ms Execution**: Rust asynchronous execution pipeline with pre-warmed RPC connection pooling and hardware-accelerated transaction serialization.
 - 🌐 **10-Chain Matrix**: Seamless trading across Robinhood Chain, Solana, Base, BSC, Sui, TON, Ethereum, Sei, XLayer, and Aptos.
-- 🤖 **Native MCP AI Agent Server**: Exposes 14 standard tools for AI assistants with dual-transport support (STDIO & SSE).
+- 🤖 **Native MCP AI Agent Server**: Exposes 16 standard tools for AI assistants with dual-transport support (STDIO & SSE).
+- 🔥 **Meme Radar & Anti-Rug Engine**: Multi-chain real-time meme discovery, funded wallet cluster analysis (penetrating insider rat positions), smart-money vs. KOL pump trap detection, and dev reputation scoring.
 - 🎯 **Instant CA Recognition**: Send any Contract Address or Move TypeTag to Telegram to instantly view token metrics, honeypot safety audit, and launch 1-click buy/sell console.
 - 🛡 **Anti-MEV & Anti-Rug Guard**: Jito MEV bundles on Solana, private mempool relays on EVM, and pre-execution bytecode simulation to block 100% of honeypot traps and malicious sell taxes.
 - 👥 **Whale & Smart Money Copy-Trading**: Real-time mempool tracking with customizable copy ratios, slippage bounds, and emergency anti-dump protection.
@@ -108,7 +109,7 @@ WhiteCat is equipped with a production-grade **Model Context Protocol (MCP)** se
 - **STDIO Transport**: Ideal for local AI IDEs and desktop clients (Claude Desktop, Cursor, Antigravity, Cline, Windsurf).
 - **HTTP / SSE Transport**: Permanent 24/7 background service (default port `38088`, endpoint `/sse`) for remote AI agents, multi-agent swarms, and cloud webhooks.
 
-### 2. Available MCP Tools (14 Standard Tools)
+### 2. Available MCP Tools (16 Standard Tools)
 
 | Tool Name | Category | Description |
 | :--- | :--- | :--- |
@@ -126,6 +127,8 @@ WhiteCat is equipped with a production-grade **Model Context Protocol (MCP)** se
 | `whitecat_list_copy_targets` | Copy Trade | Retrieve monitored smart-money and whale wallet targets. |
 | `whitecat_add_copy_target` | Copy Trade | Register new smart-money wallet address for automated mirroring. |
 | `whitecat_get_transactions` | History | Retrieve transaction history with direct blockchain explorer transaction URLs. |
+| `whitecat_scan_meme_radar` | Radar | Multi-chain meme radar scan with smart-money density, liquidity depth, and composite scoring. |
+| `whitecat_audit_wallet_clusters` | Sentry | Linked wallet clustering (source funding trace), detecting coordinated insider/dev rat positions & KOL trap dumps. |
 
 ### 3. Quick Connection Guide
 
@@ -170,6 +173,25 @@ Access the control panel anytime via `/mcp` or the **🤖 MCP Agent** button:
 - 🔑 **Dynamic Token Issuance**: One-click regeneration and revocation of MCP authorization tokens.
 - 🛡 **Autonomous Trading Kill-Switch**: Toggle AI trading permissions. When disabled, the agent is restricted to read-only market research and honeypot auditing.
 - ⚠️ **Per-Trade Safety Cap**: Enforce hard ceiling on single trade size (e.g. max 0.5 SOL/BNB) to prevent accidental runaways or loop triggers.
+
+---
+
+## 🔥 Meme Radar & Linked Wallet Cluster Sentry
+
+WhiteCat incorporates a production-grade **Meme Radar & Anti-Rug Penetration Engine** (`src/services/memeRadarService.ts`), bringing institutional on-chain intelligence to retail traders and autonomous AI agents:
+
+1. 🎯 **Multi-Factor Quant Scoring (0–100 pts)**:
+   - Evaluates early liquidity ratio, 5-minute transaction velocity, and optimal breakout market-cap sweet spot ($20k–$150k).
+   - Dynamically rewards smart money accumulation while heavily penalizing dev dumping, blacklisted tax traps, and insider concentration.
+2. 🧬 **Linked Wallet Clustering (Anti-Rat / Insider Sybil)**:
+   - Traces top holder funding genealogy (identifying the common native funding source address).
+   - Penetrates sybil disguises where multiple ostensibly separate addresses are in fact controlled by the same deployer or coordinated cabal (`linkedHoldRate`).
+3. 🪤 **Smart Degen vs. KOL Pump Trap Detector**:
+   - Differentiates authentic organic accumulation (high smart money, low marketing noise) from paid KOL exit liquidity traps (`smartDegenCount <= 1 && renownedKolCount > 0`).
+4. 👨‍💻 **Deployer Reputation & Historical Graduation Rate**:
+   - Audits developer's historical launch track record, bonding curve graduation rate, and current holding status (`HOLDING` vs `EXITED`).
+5. 📱 **Telegram Radar Board & 1-Click Sniping**:
+   - Access via `/radar`, `/hot`, or the Telegram inline button **🔥 爆点雷达**. Displays top live hot tokens with composite scores, 1-click buy shortcuts, and instant cluster audits.
 
 ---
 

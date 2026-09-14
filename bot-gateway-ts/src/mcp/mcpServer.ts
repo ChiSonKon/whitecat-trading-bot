@@ -17,6 +17,7 @@ import { TokenDetector } from '../handlers/tokenDetector.js';
 import { TokenKeyHelper } from '../services/tokenKeyHelper.js';
 import { BillingMenu } from '../menus/billingMenu.js';
 import { MainMenu } from '../menus/mainMenu.js';
+import { MemeRadarService } from '../services/memeRadarService.js';
 
 export interface McpServerOptions {
   name?: string;
@@ -778,7 +779,110 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
   );
 
   // ==========================================
-  // 6. MCP 资源定义 (Resources)
+  // 6. 爆点雷达与老鼠仓穿透工具 (Meme Radar & Cluster Auditing)
+  // ==========================================
+
+  server.tool(
+    'whitecat_scan_meme_radar',
+    '利用 Meme-Radar 引擎在指定公链实时扫描高潜力早期代币，穿透资金链路聚类排除老鼠仓，并识别纯 KOL 喊单陷阱',
+    {
+      chain: z.string().optional().describe('要扫描的公链 (默认用户当前活跃链，如 bsc, solana, base, sui, ethereum, robinhood)'),
+      minScore: z.number().optional().describe('最低综合雷达评分 (0-100，默认 50)'),
+      maxLinkedRate: z.number().optional().describe('允许的最大关联老鼠仓比例 (0.0 - 1.0，如 0.20 代表 20%)'),
+      limit: z.number().optional().describe('返回候选数量 (默认 6)'),
+      userId: z.number().optional(),
+      token: z.string().optional()
+    },
+    async ({ chain, minScore = 50, maxLinkedRate = 0.25, limit = 6, userId, token }) => {
+      const { user, error } = resolveUser(userId, token);
+      if (!user) return { isError: true, content: [{ type: 'text', text: `[Auth Error] ${error}` }] };
+
+      const targetChain = chain || user.activeChain || 'bsc';
+      const candidates = await MemeRadarService.scanRadarTokens(targetChain, {
+        maxLinkedRate,
+        limit
+      });
+
+      const filtered = candidates.filter(c => c.compositeScore >= minScore);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              chain: targetChain,
+              foundCount: filtered.length,
+              candidates: filtered.map(c => ({
+                symbol: c.symbol,
+                name: c.name,
+                tokenAddress: c.tokenAddress,
+                compositeScore: c.compositeScore,
+                marketCapUsd: c.marketCapUsd,
+                liquidityUsd: c.liquidityUsd,
+                smartDegenCount: c.smartDegenCount,
+                renownedKolCount: c.renownedKolCount,
+                isKolOnlyTrap: c.isKolOnlyTrap,
+                linkedHoldRatePercent: (c.linkedHoldRate * 100).toFixed(1) + '%',
+                devStatus: c.devStatus,
+                riskWarnings: c.riskWarnings
+              }))
+            }, null, 2)
+          }
+        ]
+      };
+    }
+  );
+
+  server.tool(
+    'whitecat_audit_wallet_clusters',
+    '深度穿透审计指定代币的资金链路聚类与合谋老鼠仓：追踪大户持仓的注资祖先 (from_address)，计算真实关联老鼠仓占比与开发团队画像',
+    {
+      tokenAddress: z.string().describe('代币合约地址或 CA'),
+      chain: z.string().optional().describe('公链代码 (默认用户当前活跃链)'),
+      userId: z.number().optional(),
+      token: z.string().optional()
+    },
+    async ({ tokenAddress, chain, userId, token }) => {
+      const { user, error } = resolveUser(userId, token);
+      if (!user) return { isError: true, content: [{ type: 'text', text: `[Auth Error] ${error}` }] };
+
+      const targetChain = chain || user.activeChain || 'bsc';
+      const clusters = MemeRadarService.analyzeWalletClusters(tokenAddress, targetChain);
+      const signals = MemeRadarService.evaluateWalletSignals(tokenAddress, targetChain);
+      const devRep = MemeRadarService.evaluateDevReputation(tokenAddress, targetChain);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              tokenAddress,
+              chain: targetChain,
+              linkedHoldRate: clusters.linkedHoldRate,
+              linkedHoldRatePercent: (clusters.linkedHoldRate * 100).toFixed(1) + '%',
+              isHighRiskCluster: clusters.linkedHoldRate > 0.15,
+              clusters: clusters.clusters,
+              walletSignals: {
+                smartDegenCount: signals.smartDegenCount,
+                renownedKolCount: signals.renownedKolCount,
+                isKolOnlyTrap: signals.isKolOnlyTrap,
+                assessment: signals.isKolOnlyTrap
+                  ? '⚠️ 纯 KOL 推广喊单盘，缺少链上高胜率聪明钱底仓，存在拉高出货砸盘高风险！'
+                  : '🟢 具备真实链上聪明钱参与，筹码分布相对自然。'
+              },
+              developerReputation: {
+                devStatus: devRep.devStatus,
+                devLaunchCount: devRep.devLaunchCount,
+                devGraduationRate: (devRep.devGraduationRate * 100).toFixed(0) + '%'
+              }
+            }, null, 2)
+          }
+        ]
+      };
+    }
+  );
+
+  // ==========================================
+  // 7. MCP 资源定义 (Resources)
   // ==========================================
 
   server.resource(

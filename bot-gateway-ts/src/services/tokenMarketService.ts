@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { MemeRadarService } from './memeRadarService.js';
 
 export interface TokenMarketData {
   name: string;
@@ -16,6 +17,14 @@ export interface TokenMarketData {
   dextoolsUrl: string;
   twitterUrl?: string;
   pairAddress?: string;
+
+  // --- Meme-Radar 增强量化指标 ---
+  linkedHoldRate?: number;        // 关联老鼠仓占比 (0.0 - 1.0)
+  smartDegenCount?: number;       // 链上真聪明钱人数
+  kolCount?: number;              // KOL 喊单人数
+  isKolOnlyTrap?: boolean;        // 纯 KOL 喊单盘陷阱告警
+  devStatus?: 'EXITED' | 'HOLDING' | 'UNKNOWN'; // 开发者持仓状态
+  radarScore?: number;            // 雷达综合评分 (0 - 100)
 }
 
 const proxyUri = process.env.SOCKS_PROXY || 'socks5h://127.0.0.1:1080';
@@ -113,6 +122,11 @@ export class TokenMarketService {
 
     const twitter = pair?.info?.socials?.find((s: any) => s.type === 'twitter')?.url || 'https://x.com';
 
+    // 3. 计算 Meme-Radar 增强量化与老鼠仓审计指标
+    const clusters = MemeRadarService.analyzeWalletClusters(cleanAddress, chainKey);
+    const signals = MemeRadarService.evaluateWalletSignals(cleanAddress, chainKey);
+    const devRep = MemeRadarService.evaluateDevReputation(cleanAddress, chainKey);
+
     return {
       name: pair?.baseToken?.name || defaultName,
       symbol: pair?.baseToken?.symbol || defaultSymbol,
@@ -127,7 +141,15 @@ export class TokenMarketService {
       dexscreenerUrl: pair?.url || `https://dexscreener.com/${chainKey}/${cleanAddress}`,
       dextoolsUrl: `https://www.dextools.io/app/cn/${chainKey}/pair-explorer/${pair?.pairAddress || cleanAddress}`,
       twitterUrl: twitter,
-      pairAddress: pair?.pairAddress
+      pairAddress: pair?.pairAddress,
+
+      // Meme-Radar 增强字段
+      linkedHoldRate: clusters.linkedHoldRate,
+      smartDegenCount: signals.smartDegenCount,
+      kolCount: signals.renownedKolCount,
+      isKolOnlyTrap: signals.isKolOnlyTrap,
+      devStatus: devRep.devStatus,
+      radarScore: Math.max(10, Math.min(99, Math.round(75 + (signals.smartDegenCount * 5) - (clusters.linkedHoldRate * 80) - (signals.isKolOnlyTrap ? 25 : 0))))
     };
   }
 }

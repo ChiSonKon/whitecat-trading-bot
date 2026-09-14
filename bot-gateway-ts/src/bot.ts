@@ -24,6 +24,8 @@ import { PosterService } from './services/posterService.js';
 import { BillingMenu, UserTransactionRecord } from './menus/billingMenu.js';
 import { SnipeMenu } from './menus/snipeMenu.js';
 import { McpMenu } from './menus/mcpMenu.js';
+import { RadarMenu } from './menus/radarMenu.js';
+import { MemeRadarService } from './services/memeRadarService.js';
 import { WhiteCatSseServer } from './mcp/sseServer.js';
 import {
   UserState,
@@ -476,6 +478,17 @@ bot.command('mcp', async ctx => {
   });
 });
 
+// 15. /radar 或 /hot 指令: Meme 爆点雷达实时候选榜
+bot.command(['radar', 'hot'], async ctx => {
+  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  const candidates = await MemeRadarService.scanRadarTokens(user.activeChain, { limit: 6 });
+  return ctx.reply(RadarMenu.renderText(user.activeChain, candidates, user.lang), {
+    reply_markup: RadarMenu.renderKeyboard(user.activeChain, candidates, user.lang),
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true }
+  });
+});
+
 // 14. 回调交互分发 (Callback Queries)
 bot.on('callback_query:data', async ctx => {
   
@@ -678,6 +691,49 @@ bot.on('callback_query:data', async ctx => {
     return ctx.reply(McpMenu.renderToolsList(user.lang), {
       reply_markup: kb,
       parse_mode: 'HTML'
+    });
+  }
+
+  // G.7 🔥 Meme 爆点雷达 (Meme Radar)
+  if (data === 'menu_radar' || data === 'radar_refresh') {
+    await ctx.answerCallbackQuery();
+    const candidates = await MemeRadarService.scanRadarTokens(user.activeChain, { limit: 6 });
+    return ctx.editMessageText(RadarMenu.renderText(user.activeChain, candidates, user.lang), {
+      reply_markup: RadarMenu.renderKeyboard(user.activeChain, candidates, user.lang),
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
+    });
+  }
+
+  // G.8 雷达代币一键直达交易面板
+  if (data.startsWith('radar_pick_')) {
+    const shortKey = data.replace('radar_pick_', '');
+    const tokenAddress = TokenKeyHelper.toAddress(shortKey);
+    await ctx.answerCallbackQuery();
+    await syncWalletBalances(user, user.activeChain);
+    const currentWallets = getUserWallets(user);
+    const holding = user.tokenHoldings.get(tokenAddress.toLowerCase());
+    const userHolding = holding?.amount || 0;
+    const userHoldingNative = holding?.costNative || 0;
+    const botUser = ctx.me?.username || 'whitecat_doge_yr3ybv_bot';
+
+    const { text: panelText, keyboard } = await TokenDetector.analyzeAndBuildView(
+      user.activeChain,
+      tokenAddress,
+      currentWallets,
+      user.lang,
+      userHolding,
+      userHoldingNative,
+      0,
+      0,
+      user.userId,
+      botUser
+    );
+
+    return ctx.editMessageText(panelText, {
+      reply_markup: keyboard,
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
     });
   }
 

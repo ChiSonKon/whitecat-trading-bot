@@ -104,11 +104,20 @@ export class TradeMenu {
     const holdingStr = userHolding > 0 ? userHolding.toLocaleString('en-US', { maximumFractionDigits: 4 }) : '0';
     const holdingValStr = holdingNative.toFixed(4);
 
+    const smartDegens = market.smartDegenCount ?? 0;
+    const kolCount = market.kolCount ?? 0;
+    const linkedRate = ((market.linkedHoldRate ?? 0.02) * 100).toFixed(1);
+    const ratBadge = (market.linkedHoldRate ?? 0) > 0.15 ? '🔴 高危' : (market.linkedHoldRate ?? 0) > 0.08 ? '🟡 中等' : '🟢 安全';
+    const devStatus = market.devStatus || 'HOLDING';
+    const kolAlert = market.isKolOnlyTrap ? `\n⚠️ <b>${I18nService.t('radar.kolWarning', lang)}</b>` : '';
+
     return (
       `<b>${escapedName}</b>  ｜  <a href="${shareUrl}">${I18nService.t('trade.referTrading', lang)}</a>\n` +
       `<code>${escapedAddress}</code>\n` +
       `${I18nService.t('trade.holding', lang)}: ${holdingStr}  (≈${holdingValStr} ${nativeSymbol}) ${icon} PnL: ${pnlNative.toFixed(4)} ${nativeSymbol}(≈ ${pnlPct.toFixed(2)}%)\n\n` +
-      `<b>⚠️ ${I18nService.t('trade.risk', lang)}: ${escapedRisk} </b>\n\n` +
+      `<b>⚠️ ${I18nService.t('trade.risk', lang)}: ${escapedRisk} </b>\n` +
+      `🎯 聪明钱: <b>${smartDegens}人</b> | KOL: <b>${kolCount}人</b> | 评分: <b>${market.radarScore ?? 85}分</b>\n` +
+      `🧬 关联老鼠仓: ${ratBadge} (<b>${linkedRate}%</b>) | Dev: <code>${devStatus}</code>${kolAlert}\n\n` +
       `${escapedWalletName}\n` +
       `<code>${walletAddress}</code>\n` +
       `${I18nService.t('trade.balance', lang)}: ${walletBalance} ${nativeSymbol}\n\n` +
