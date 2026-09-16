@@ -520,10 +520,15 @@ bot.command('mini_futures', async ctx => {
   );
 });
 
-// 14. /mcp 指令: MCP 智能体接入与接口配置 (内部特邀用户受限访问)
+// 14. /mcp 指令: MCP 智能体接入与接口配置 (内部特邀用户受限访问，严禁在群聊中输出凭据)
 bot.command('mcp', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type && ctx.chat.type !== 'private') {
+    return ctx.reply(I18nService.t('mcp.privateOnly', user.lang), {
+      parse_mode: 'HTML'
+    });
+  }
   if (!isMcpUserAllowed(user.userId)) {
     return ctx.reply(McpMenu.renderAccessRestrictedText(user.lang), {
       reply_markup: McpMenu.renderAccessRestrictedKeyboard(user.lang),
@@ -828,7 +833,16 @@ bot.on('callback_query:data', async ctx => {
     });
   }
 
-  // G.1 🤖 MCP 智能体接入面板 (内部特邀用户权限限制)
+  // G.1 🤖 MCP 智能体接入面板 (内部特邀用户权限限制，严格限制私聊)
+  if (data === 'menu_mcp' || data.startsWith('mcp_')) {
+    if (ctx.chat?.type && ctx.chat.type !== 'private') {
+      return ctx.answerCallbackQuery({
+        text: I18nService.t('mcp.privateOnlyAlert', user.lang),
+        show_alert: true
+      });
+    }
+  }
+
   if (data === 'menu_mcp') {
     await ctx.answerCallbackQuery();
     if (!isMcpUserAllowed(user.userId)) {

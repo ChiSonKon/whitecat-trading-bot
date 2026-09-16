@@ -19,7 +19,7 @@ export class WhiteCatSseServer {
 
   constructor(config: SseServerConfig = {}) {
     this.port = config.port !== undefined ? config.port : (process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088);
-    this.host = config.host || process.env.MCP_HOST || '0.0.0.0';
+    this.host = config.host || process.env.MCP_HOST || '127.0.0.1';
   }
 
   public start(): Promise<void> {

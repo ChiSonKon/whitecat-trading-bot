@@ -10,6 +10,13 @@
 *.key
 *.priv
 id_rsa*
+*.bak
+*.dump
+*.sql
+*.sqlite
+*.sqlite3
+*.rdb
+*.db-journal
 
 # 2. 运行时用户数据与交易状态 (包含测试钱包私钥与流水)
 data/*.json

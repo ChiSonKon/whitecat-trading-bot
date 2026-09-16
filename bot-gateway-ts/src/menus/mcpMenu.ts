@@ -100,11 +100,10 @@ export class McpMenu {
         whitecat: {
           command: 'node',
           args: [
-            stdioEntry,
-            `--user=${user.userId}`,
-            `--token=${user.mcpToken}`
+            stdioEntry
           ],
           env: {
+            WHITECAT_USER_ID: String(user.userId),
             WHITECAT_MCP_TOKEN: user.mcpToken
           }
         }
@@ -114,9 +113,9 @@ export class McpMenu {
     const publicHost = process.env.MCP_PUBLIC_HOST || process.env.SERVER_IP || '127.0.0.1';
     return (
       `📋 <b>Claude Desktop 配置文件 (claude_desktop_config.json)</b>：\n\n` +
-      `将以下配置复制并粘贴到您的 Claude Desktop 配置文件中：\n\n` +
+      `将以下配置复制并粘贴到您的 Claude Desktop 配置文件中（凭据通过安全环境变量注入）：\n\n` +
       `<pre><code class="language-json">${JSON.stringify(config, null, 2)}</code></pre>\n\n` +
-      `💡 也可以选择 SSE 远程连接模式：\n` +
+      `💡 也可以选择 SSE 远程连接模式（支持 Header 标头认证）：\n` +
       `<code>http://${publicHost}:${port}/sse?user=${user.userId}&token=${user.mcpToken}</code>`
     );
   }
@@ -126,9 +125,10 @@ export class McpMenu {
     const publicHost = process.env.MCP_PUBLIC_HOST || process.env.SERVER_IP || '127.0.0.1';
     return (
       `📋 <b>Cursor / Antigravity / Cline 智能体接入配置</b>：\n\n` +
-      `<b>方式 1：标准 STDIO 命令行启动（推荐本地）</b>\n` +
+      `<b>方式 1：标准 STDIO 启动（推荐本地，通过环境密钥传参）</b>\n` +
       `• 命令 (Command): <code>node</code>\n` +
-      `• 参数 (Args): <code>${stdioEntry} --user=${user.userId} --token=${user.mcpToken}</code>\n\n` +
+      `• 参数 (Args): <code>${stdioEntry}</code>\n` +
+      `• 环境变量 (Env): <code>WHITECAT_USER_ID=${user.userId}</code>, <code>WHITECAT_MCP_TOKEN=${user.mcpToken}</code>\n\n` +
       `<b>方式 2：HTTP / SSE 模式（支持远程与多智能体）</b>\n` +
       `• 类型 (Type): <code>sse</code>\n` +
       `• URL: <code>http://${publicHost}:${port}/sse?user=${user.userId}&token=${user.mcpToken}</code>\n\n` +

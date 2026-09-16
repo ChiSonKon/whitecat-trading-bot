@@ -553,6 +553,32 @@ const dict: Record<string, Record<string, string>> = {
     "pl": "💬 Skontaktuj się w sprawie testów",
     "de": "💬 Autor für Test kontaktieren"
   },
+  "mcp.privateOnly": {
+    "en": "⚠️ <b>Security Alert</b>: MCP agent configuration and API tokens contain sensitive permissions. To protect your assets and privacy, MCP settings can only be accessed in private chat with the bot.",
+    "zh-hans": "⚠️ <b>安全提醒</b>：MCP 智能体配置与访问密钥包含敏感权限，为保障您的资产与密钥安全，MCP 相关设置仅支持在与机器人的私聊对话中查看与配置。",
+    "zh-hant": "⚠️ <b>安全提醒</b>：MCP 智能體配置與訪問密鑰包含敏感權限，為保障您的資產與密鑰安全，MCP 相關設置僅支持在與機器人的私聊對話中查看與配置。",
+    "vi": "⚠️ <b>Cảnh báo an toàn</b>: Cấu hình MCP và token chứa quyền bảo mật nhạy cảm. Để bảo vệ tài sản, vui lòng chỉ xem và cấu hình MCP trong chat riêng với bot.",
+    "ru": "⚠️ <b>Безопасность</b>: Настройки MCP и токены содержат конфиденциальные данные. В целях безопасности доступ к MCP разрешен только в личном чате с ботом.",
+    "ko": "⚠️ <b>보안 경고</b>: MCP 에이전트 설정과 API 토큰은 민감한 권한을 포함합니다. 자산과 보안 보호를 위해 봇과의 1:1 개인 채팅에서만 사용 가능합니다.",
+    "ja": "⚠️ <b>セキュリティ警告</b>：MCPエージェントの設定とAPIトークンには機密権限が含まれます。安全保護のため、ボットとのプライベートチャットでのみ設定・確認が可能です。",
+    "es": "⚠️ <b>Alerta de seguridad</b>: La configuración de MCP y los tokens contienen permisos confidenciales. Por seguridad, solo se puede acceder a MCP en chat privado con el bot.",
+    "tr": "⚠️ <b>Güvenlik Uyarısı</b>: MCP ajan yapılandırması ve API belirteçleri hassas izinler içerir. Güvenliğiniz için MCP ayarlarına yalnızca botla özel sohbette erişilebilir.",
+    "pl": "⚠️ <b>Ostrzeżenie bezpieczeństwa</b>: Konfiguracja MCP i tokeny zawierają poufne uprawnienia. W celach bezpieczeństwa dostęp do MCP jest możliwy wyłącznie w prywatnym czacie z botem.",
+    "de": "⚠️ <b>Sicherheitshinweis</b>: MCP-Konfigurationen und API-Token enthalten sensible Berechtigungen. Aus Sicherheitsgründen sind MCP-Einstellungen nur im privaten Chat mit dem Bot verfügbar."
+  },
+  "mcp.privateOnlyAlert": {
+    "en": "⚠️ MCP settings and tokens can only be viewed in private chat.",
+    "zh-hans": "⚠️ MCP 界面与密钥仅限私聊中查看与操作，请在私聊中使用。",
+    "zh-hant": "⚠️ MCP 界面與密鑰僅限私聊中查看與操作，請在私聊中使用。",
+    "vi": "⚠️ Cài đặt và token MCP chỉ có thể thao tác trong chat riêng.",
+    "ru": "⚠️ Настройки и токены MCP доступны только в личном чате.",
+    "ko": "⚠️ MCP 설정 및 토큰은 개인 채팅에서만 확인 가능합니다.",
+    "ja": "⚠️ MCP設定とトークンはプライベートチャットでのみ操作できます。",
+    "es": "⚠️ La configuración y tokens de MCP solo se pueden usar en chat privado.",
+    "tr": "⚠️ MCP ayarları ve belirteçleri yalnızca özel sohbette görüntülenebilir.",
+    "pl": "⚠️ Ustawienia i tokeny MCP można przeglądać tylko w prywatnym czacie.",
+    "de": "⚠️ MCP-Einstellungen und Token können nur im privaten Chat genutzt werden."
+  },
 
   // --- 底部 3 个并排快捷按键 ---
   "dock.mainMenu": {

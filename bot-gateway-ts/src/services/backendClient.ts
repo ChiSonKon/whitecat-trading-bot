@@ -42,9 +42,19 @@ export interface TradeResult {
 export class BackendClient {
   private static baseUrl = CONFIG.BACKEND_CORE_URL;
 
+  private static getHeaders(): Record<string, string> {
+    const secret = process.env.BACKEND_CORE_SECRET || process.env.CORE_API_SECRET;
+    return secret
+      ? {
+          'Authorization': `Bearer ${secret}`,
+          'x-backend-token': secret
+        }
+      : {};
+  }
+
   public static async health(): Promise<any> {
     try {
-      const resp = await axios.get(`${this.baseUrl}/health`, { timeout: 3000 });
+      const resp = await axios.get(`${this.baseUrl}/health`, { timeout: 3000, headers: this.getHeaders() });
       return resp.data;
     } catch (e: any) {
       return { status: 'DEGRADED', error: e.message };
@@ -52,18 +62,26 @@ export class BackendClient {
   }
 
   public static async generateWallet(chainOrFamily: string = 'evm'): Promise<WalletGenerationResponse> {
-    const resp = await axios.post(`${this.baseUrl}/api/v1/wallet/generate`, {
-      chain: chainOrFamily.toLowerCase(),
-      chain_family: chainOrFamily.toLowerCase()
-    });
+    const resp = await axios.post(
+      `${this.baseUrl}/api/v1/wallet/generate`,
+      {
+        chain: chainOrFamily.toLowerCase(),
+        chain_family: chainOrFamily.toLowerCase()
+      },
+      { headers: this.getHeaders() }
+    );
     return resp.data;
   }
 
   public static async decryptPrivateKey(ciphertextHex: string, nonceHex: string): Promise<string> {
-    const resp = await axios.post(`${this.baseUrl}/api/v1/wallet/decrypt`, {
-      ciphertext_hex: ciphertextHex,
-      nonce_hex: nonceHex
-    });
+    const resp = await axios.post(
+      `${this.baseUrl}/api/v1/wallet/decrypt`,
+      {
+        ciphertext_hex: ciphertextHex,
+        nonce_hex: nonceHex
+      },
+      { headers: this.getHeaders() }
+    );
     return resp.data.private_key;
   }
 

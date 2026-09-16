@@ -31,7 +31,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
-    let config = AppConfig::from_env();
+    let config = AppConfig::try_from_env()?;
 
     info!("🚀 正在初始化白猫打狗机器人 (WhiteCat Trading Bot) 交易内核...");
     info!("🔗 Robinhood Chain RPC: {}", config.robinhood_rpc);
@@ -82,6 +82,30 @@ async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     }))
 }
 
+fn verify_wallet_auth(headers: &axum::http::HeaderMap, state: &AppState) -> Result<(), (StatusCode, String)> {
+    if let Some(ref secret) = state.config.core_api_secret {
+        let auth_header = headers.get("authorization").and_then(|v| v.to_str().ok());
+        let x_token = headers.get("x-backend-token").and_then(|v| v.to_str().ok());
+
+        let is_valid = if let Some(ah) = auth_header {
+            if let Some(token) = ah.strip_prefix("Bearer ") {
+                token.trim() == secret
+            } else {
+                ah.trim() == secret
+            }
+        } else if let Some(xt) = x_token {
+            xt.trim() == secret
+        } else {
+            false
+        };
+
+        if !is_valid {
+            return Err((StatusCode::UNAUTHORIZED, "Unauthorized: Invalid or missing core API secret".to_string()));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Deserialize)]
 struct GenWalletReq {
     chain_family: Option<String>,
@@ -90,8 +114,11 @@ struct GenWalletReq {
 
 async fn generate_wallet_handler(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<GenWalletReq>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    verify_wallet_auth(&headers, &state)?;
+
     let target = payload.chain
         .or(payload.chain_family)
         .unwrap_or_else(|| "evm".to_string());
@@ -118,8 +145,11 @@ struct EncryptReq {
 
 async fn encrypt_key_handler(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<EncryptReq>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    verify_wallet_auth(&headers, &state)?;
+
     let res = security::CryptoEngine::encrypt(&payload.private_key, &state.config.master_key)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     Ok(Json(res))
@@ -133,8 +163,11 @@ struct DecryptReq {
 
 async fn decrypt_key_handler(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<DecryptReq>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    verify_wallet_auth(&headers, &state)?;
+
     let res = security::CryptoEngine::decrypt(
         &payload.ciphertext_hex,
         &payload.nonce_hex,
@@ -255,4 +288,85 @@ async fn robinhood_build_tx_handler(
         .build_buy_swap_calldata(&req.token_address, &req.recipient_address, req.amount_eth, slippage)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     Ok(Json(draft))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderMap;
+
+    fn create_test_state(secret: Option<String>) -> AppState {
+        AppState {
+            config: AppConfig {
+                server_host: "127.0.0.1".to_string(),
+                server_port: 8085,
+                master_key: "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90".to_string(),
+                core_api_secret: secret,
+                robinhood_rpc: "https://rpc.mainnet.chain.robinhood.com".to_string(),
+                robinhood_chain_id: 4663,
+                ethereum_rpc: "https://eth.llamarpc.com".to_string(),
+                base_rpc: "https://mainnet.base.org".to_string(),
+                bsc_rpc: "https://bsc-dataseed.binance.org".to_string(),
+                solana_rpc: "https://api.mainnet-beta.solana.com".to_string(),
+                jito_block_engine_url: "https://mainnet.block-engine.jito.wtf".to_string(),
+                default_slippage_pct: 5.0,
+                max_priority_fee_gwei: 5.0,
+            },
+            rh_adapter: chains::RobinhoodChainAdapter::new("https://rpc.mainnet.chain.robinhood.com"),
+            evm_adapter: chains::EvmMultiChainAdapter::new(),
+            solana_adapter: chains::SolanaChainAdapter::new(
+                "https://api.mainnet-beta.solana.com",
+                "https://mainnet.block-engine.jito.wtf",
+            ),
+            honeypot_sim: simulator::HoneypotSimulator::new(),
+        }
+    }
+
+    #[test]
+    fn test_verify_wallet_auth_when_no_secret_configured() {
+        let state = create_test_state(None);
+        let headers = HeaderMap::new();
+        assert!(verify_wallet_auth(&headers, &state).is_ok());
+    }
+
+    #[test]
+    fn test_verify_wallet_auth_rejects_missing_or_invalid_secret() {
+        let state = create_test_state(Some("super-secure-backend-token".to_string()));
+        let mut headers = HeaderMap::new();
+
+        // 1. Missing header -> 401
+        let err = verify_wallet_auth(&headers, &state).unwrap_err();
+        assert_eq!(err.0, StatusCode::UNAUTHORIZED);
+
+        // 2. Wrong Bearer token -> 401
+        headers.insert("authorization", "Bearer wrong-token".parse().unwrap());
+        let err = verify_wallet_auth(&headers, &state).unwrap_err();
+        assert_eq!(err.0, StatusCode::UNAUTHORIZED);
+
+        // 3. Wrong x-backend-token -> 401
+        headers.remove("authorization");
+        headers.insert("x-backend-token", "wrong-token".parse().unwrap());
+        let err = verify_wallet_auth(&headers, &state).unwrap_err();
+        assert_eq!(err.0, StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
+    fn test_verify_wallet_auth_accepts_valid_secret() {
+        let state = create_test_state(Some("super-secure-backend-token".to_string()));
+
+        // 1. Valid Bearer token
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer super-secure-backend-token".parse().unwrap());
+        assert!(verify_wallet_auth(&headers, &state).is_ok());
+
+        // 2. Valid raw Authorization token
+        let mut headers2 = HeaderMap::new();
+        headers2.insert("authorization", "super-secure-backend-token".parse().unwrap());
+        assert!(verify_wallet_auth(&headers2, &state).is_ok());
+
+        // 3. Valid x-backend-token header
+        let mut headers3 = HeaderMap::new();
+        headers3.insert("x-backend-token", "super-secure-backend-token".parse().unwrap());
+        assert!(verify_wallet_auth(&headers3, &state).is_ok());
+    }
 }

@@ -9,11 +9,13 @@ echo "=================================================================="
 
 # 检查环境文件
 if [ ! -f "$ROOT_DIR/.env" ]; then
-    echo "ℹ️ 未发现 .env 文件，正在从 .env.example 初始化..."
+    echo "ℹ️ 未发现 .env 文件，已从 .env.example 初始化模板..."
     cp "$ROOT_DIR/.env.example" "$ROOT_DIR/.env"
+    echo "⚠️ 请先在 .env 文件中配置真实的 BOT_TOKEN、ENCRYPTION_MASTER_KEY 及 USER_STORE_ENCRYPTION_KEY 密钥后再启动服务！"
+    exit 1
 fi
 
-echo "🚀 [1/3] 启动 Rust 交易内核 (端口 8080)..."
+echo "🚀 [1/3] 启动 Rust 交易内核 (端口 8085)..."
 (cd "$ROOT_DIR/backend-core-rust" && cargo run) &
 RUST_PID=$!
 
