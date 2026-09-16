@@ -60,7 +60,7 @@ test('ARC Chain: wallet balance queries formatted with standard EVM 18-decimal U
   }
 });
 
-test('ARC Chain: DEX Lightning Buy assembly routes net amount and 0.6% protocol fee in 6 decimals', async () => {
+test('ARC Chain: DEX Lightning Buy assembly routes net amount and 0.6% protocol fee via Uniswap V3', async () => {
   const { OnChainSwapService: Swap } = await import('../dist/services/onChainSwapService.js');
   const { CONFIG } = await import('../dist/config.js');
   const { BackendClient } = await import('../dist/services/backendClient.js');
@@ -83,24 +83,35 @@ test('ARC Chain: DEX Lightning Buy assembly routes net amount and 0.6% protocol 
     ChainBalanceService.getNativeBalance = async () => 1000; // 1000 USDC available
     Swap.pollEvmReceipt = async () => ({ status: 'SUCCESS' });
 
-    const quoteInterface = new ethers.Interface(['function getAmountsOut(uint,address[]) view returns (uint[])']);
+    const factoryIface = new ethers.Interface(['function getPool(address,address,uint24) view returns (address)']);
+    const erc20Iface = new ethers.Interface([
+      'function decimals() view returns (uint8)',
+      'function allowance(address,address) view returns (uint256)'
+    ]);
+    const mockPool = '0x162df51c504e7b8321e07387932f333d9be16a72';
     const txsSent = [];
 
     Swap.callEvmRpc = async (chain, method, params) => {
       assert.equal(chain, 'arc');
       if (method === 'eth_chainId') return '0x13b2'; // 5042 in hex
       if (method === 'eth_getCode') return '0x1234';
-      if (method === 'eth_estimateGas') return '0x5208';
+      if (method === 'eth_estimateGas') return '0x307e8';
       if (method === 'eth_getTransactionCount') return '0x0';
-      if (method === 'eth_gasPrice') return '0x3b9aca00'; // 1 Gwei
+      if (method === 'eth_gasPrice') return '0x9502f9000';
       if (method === 'eth_sendRawTransaction') {
         txsSent.push(params[0]);
         return '0x' + (txsSent.length === 1 ? 'aa' : 'bb').repeat(32);
       }
       if (method === 'eth_call') {
-        if (params[0].data.startsWith(quoteInterface.getFunction('getAmountsOut').selector)) {
-          const [amount] = quoteInterface.decodeFunctionData('getAmountsOut', params[0].data);
-          return quoteInterface.encodeFunctionResult('getAmountsOut', [[amount, 99400000n]]);
+        const data = params[0].data;
+        if (data.startsWith(factoryIface.getFunction('getPool').selector)) {
+          return factoryIface.encodeFunctionResult('getPool', [mockPool]);
+        }
+        if (data.startsWith(erc20Iface.getFunction('decimals').selector)) {
+          return erc20Iface.encodeFunctionResult('decimals', [18]);
+        }
+        if (data.startsWith(erc20Iface.getFunction('allowance').selector)) {
+          return erc20Iface.encodeFunctionResult('allowance', [ethers.MaxUint256]);
         }
         return '0x' + 'ff'.repeat(32);
       }
@@ -121,8 +132,10 @@ test('ARC Chain: DEX Lightning Buy assembly routes net amount and 0.6% protocol 
       slippagePct: 5
     });
 
-    assert.equal(res.status, 'FAILED');
-    assert.ok(res.error?.includes('Swaps are unavailable on this chain') || res.error?.includes('disabled'));
+    assert.equal(res.status, 'SUCCESS', 'Arc Uniswap V3 buy should execute successfully');
+    assert.ok(res.txHash.startsWith('0x'), 'Should return valid transaction hash');
+    assert.equal(res.isRealOnChain, true, 'isRealOnChain must be true');
+    assert.ok(txsSent.length >= 1, 'At least one transaction must be broadcast');
   } finally {
     CONFIG.PROTOCOL_FEE_RECIPIENT_EVM = oldRecipient;
     Swap.callEvmRpc = origRpc;
@@ -133,7 +146,7 @@ test('ARC Chain: DEX Lightning Buy assembly routes net amount and 0.6% protocol 
   }
 });
 
-test('ARC Chain: DEX Lightning Sell assembly executes 0.6% protocol fee in 6 decimals', async () => {
+test('ARC Chain: DEX Lightning Sell assembly executes 0.6% protocol fee via Uniswap V3', async () => {
   const { OnChainSwapService: Swap } = await import('../dist/services/onChainSwapService.js');
   const { CONFIG } = await import('../dist/config.js');
   const { BackendClient } = await import('../dist/services/backendClient.js');
@@ -152,43 +165,44 @@ test('ARC Chain: DEX Lightning Sell assembly executes 0.6% protocol fee in 6 dec
 
   try {
     BackendClient.checkHoneypot = async () => ({ risk_level: 'SAFE', can_buy: true, can_sell: true, is_honeypot: false });
-    // Token priced at 0.1 USDC
     TokenMarketService.fetchTokenDetails = async () => ({ symbol: 'CAT', name: 'Cat Token', priceNative: 0.1 });
     ChainBalanceService.getNativeBalance = async () => 10;
     Swap.pollEvmReceipt = async () => ({ status: 'SUCCESS' });
 
+    const factoryIface = new ethers.Interface(['function getPool(address,address,uint24) view returns (address)']);
     const erc20Iface = new ethers.Interface([
       'function decimals() view returns (uint8)',
       'function allowance(address,address) view returns (uint256)',
       'function balanceOf(address) view returns (uint256)'
     ]);
-    const quoteInterface = new ethers.Interface(['function getAmountsOut(uint,address[]) view returns (uint[])']);
+    const mockPool = '0x162df51c504e7b8321e07387932f333d9be16a72';
     const txsSent = [];
 
     Swap.callEvmRpc = async (chain, method, params) => {
       assert.equal(chain, 'arc');
       if (method === 'eth_chainId') return '0x13b2';
       if (method === 'eth_getCode') return '0x1234';
-      if (method === 'eth_estimateGas') return '0x5208';
+      if (method === 'eth_estimateGas') return '0x307e8';
       if (method === 'eth_getTransactionCount') return '0x0';
-      if (method === 'eth_gasPrice') return '0x3b9aca00';
+      if (method === 'eth_gasPrice') return '0x9502f9000';
+      if (method === 'eth_getBalance') return '0x1bc16d674ec80000'; // 2 USDC
       if (method === 'eth_sendRawTransaction') {
         txsSent.push(params[0]);
         return '0x' + (txsSent.length === 1 ? 'aa' : 'bb').repeat(32);
       }
       if (method === 'eth_call') {
-        if (params[0].data.startsWith(erc20Iface.getFunction('decimals').selector)) {
+        const data = params[0].data;
+        if (data.startsWith(factoryIface.getFunction('getPool').selector)) {
+          return factoryIface.encodeFunctionResult('getPool', [mockPool]);
+        }
+        if (data.startsWith(erc20Iface.getFunction('decimals').selector)) {
           return erc20Iface.encodeFunctionResult('decimals', [18]);
         }
-        if (params[0].data.startsWith(erc20Iface.getFunction('allowance').selector)) {
+        if (data.startsWith(erc20Iface.getFunction('allowance').selector)) {
           return erc20Iface.encodeFunctionResult('allowance', [ethers.MaxUint256]);
         }
-        if (params[0].data.startsWith(erc20Iface.getFunction('balanceOf').selector)) {
+        if (data.startsWith(erc20Iface.getFunction('balanceOf').selector)) {
           return erc20Iface.encodeFunctionResult('balanceOf', [ethers.parseUnits('1000', 18)]);
-        }
-        if (params[0].data.startsWith(quoteInterface.getFunction('getAmountsOut').selector)) {
-          const [amount] = quoteInterface.decodeFunctionData('getAmountsOut', params[0].data);
-          return quoteInterface.encodeFunctionResult('getAmountsOut', [[amount, 100_000_000n]]);
         }
         return '0x' + 'ff'.repeat(32);
       }
@@ -211,9 +225,10 @@ test('ARC Chain: DEX Lightning Sell assembly executes 0.6% protocol fee in 6 dec
       slippagePct: 5
     });
 
-    // Under containment guard, ARC raw transactions are blocked from broadcasting
-    assert.equal(res.status, 'FAILED');
-    assert.ok(res.error?.includes('Swaps are unavailable on this chain') || res.error?.includes('disabled'));
+    assert.equal(res.status, 'SUCCESS', 'Arc Uniswap V3 sell should execute successfully');
+    assert.ok(res.txHash.startsWith('0x'), 'Should return valid transaction hash');
+    assert.equal(res.isRealOnChain, true);
+    assert.ok(txsSent.length >= 1);
   } finally {
     CONFIG.PROTOCOL_FEE_RECIPIENT_EVM = oldRecipient;
     Swap.callEvmRpc = origRpc;
@@ -242,7 +257,7 @@ test('ARC Chain: Router and Factory interaction interfaces query correct address
 
     const factoryAddr = await Swap.getFactoryAddress('arc');
     assert.ok(factoryAddr, 'Factory address must be resolved for arc');
-    assert.equal(factoryAddr.toLowerCase(), '0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f'.toLowerCase());
+    assert.equal(factoryAddr.toLowerCase(), '0xf0db7b58379503491d857db50ac9ece64c653918'.toLowerCase());
 
     const tokenA = '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
     const tokenB = '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';

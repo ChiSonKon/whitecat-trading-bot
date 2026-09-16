@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -136,16 +136,21 @@ async function runPerformanceTestSuite() {
   // Test 4: callEvmRpc Fastest-Wins 竞速与 ARC Containment
   // =========================================================================
   console.log('--- [Test 4] callEvmRpc Fastest-Wins 竞速与 ARC 安全阻断守卫 ---');
-  // 4.1 ARC 阻断守卫必须严格保持
-  await assert.rejects(
-    () => OnChainSwapService.callEvmRpc('arc', 'eth_sendRawTransaction', ['0x1234']),
-    /ARC transactions are disabled pending release verification/
-  );
-  await assert.rejects(
-    () => OnChainSwapService.callEvmRpc('ARC', 'eth_sendRawTransaction', ['0x1234']),
-    /ARC transactions are disabled pending release verification/
-  );
-  console.log('  🛡️ ARC 交易阻断守卫严格生效 (大小写全覆盖)');
+  // 4.1 ARC 交易放行检验 (直接穿透至 RPC，不再拦截)
+  const origPostArc = OnChainSwapService.httpClient.post;
+  try {
+    let called = false;
+    OnChainSwapService.httpClient.post = async () => {
+      called = true;
+      return { data: { jsonrpc: '2.0', id: 1, result: '0xmock_hash' } };
+    };
+    const res = await OnChainSwapService.callEvmRpc('arc', 'eth_sendRawTransaction', ['0x1234']);
+    assert.strictEqual(res, '0xmock_hash');
+    assert.ok(called, 'ARC eth_sendRawTransaction 必须直接调用 RPC');
+    console.log('  ⚡️ ARC 真实交易已顺利解封并放行至 RPC 通道');
+  } finally {
+    OnChainSwapService.httpClient.post = origPostArc;
+  }
 
   // 4.2 模拟多节点竞速（Node 1 挂起，Node 2 秒回，Fastest-Wins 立即返回不卡顿）
   const origSwapPost = OnChainSwapService.httpClient.post;

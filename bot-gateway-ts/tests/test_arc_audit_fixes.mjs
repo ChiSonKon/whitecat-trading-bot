@@ -137,11 +137,23 @@ test('FIX P0-01: ChainBalanceService returns null on RPC error instead of 0', as
   }
 });
 
-test('FIX P0-04: OnChainSwapService containment blocks raw ARC broadcast', async () => {
+test('FIX P0-04: OnChainSwapService unblocks ARC broadcast to RPC', async () => {
   const { OnChainSwapService } = await import('../dist/services/onChainSwapService.js');
 
-  await assert.rejects(
-    () => OnChainSwapService.callEvmRpc('arc', 'eth_sendRawTransaction', ['0xdead']),
-    /ARC transactions are disabled pending release verification/
-  );
+  const origRpc = OnChainSwapService.httpClient.post;
+  try {
+    let calledRpc = false;
+    OnChainSwapService.httpClient.post = async (url, body) => {
+      calledRpc = true;
+      assert.equal(body.method, 'eth_sendRawTransaction');
+      return { data: { jsonrpc: '2.0', id: 1, result: '0x11223344' } };
+    };
+
+    const res = await OnChainSwapService.callEvmRpc('arc', 'eth_sendRawTransaction', ['0xdead']);
+    assert.equal(res, '0x11223344');
+    assert.ok(calledRpc, 'eth_sendRawTransaction should reach RPC directly without containment blockage');
+  } finally {
+    OnChainSwapService.httpClient.post = origRpc;
+  }
 });
+

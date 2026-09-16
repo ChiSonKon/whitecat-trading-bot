@@ -51,6 +51,7 @@ interface EvmChainSpec {
   wrappedNative: string;
   factoryAddress?: string;
   nativeDecimals?: number;
+  dexType?: 'uniswapV2' | 'uniswapV3';
 }
 
 const EVM_SPECS: Record<string, EvmChainSpec> = {
@@ -61,7 +62,8 @@ const EVM_SPECS: Record<string, EvmChainSpec> = {
     routerAddress: '0x10ED43C718714eb63d5aA57B78B54704E256024E',
     wrappedNative: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
     factoryAddress: '0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73',
-    nativeDecimals: 18
+    nativeDecimals: 18,
+    dexType: 'uniswapV2'
   },
   base: {
     chainId: 8453,
@@ -70,7 +72,8 @@ const EVM_SPECS: Record<string, EvmChainSpec> = {
     routerAddress: '0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24',
     wrappedNative: '0x4200000000000000000000000000000000000006',
     factoryAddress: '0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6',
-    nativeDecimals: 18
+    nativeDecimals: 18,
+    dexType: 'uniswapV2'
   },
   robinhood: {
     chainId: 4663,
@@ -79,16 +82,18 @@ const EVM_SPECS: Record<string, EvmChainSpec> = {
     routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
     wrappedNative: '0x4200000000000000000000000000000000000006',
     factoryAddress: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
-    nativeDecimals: 18
+    nativeDecimals: 18,
+    dexType: 'uniswapV2'
   },
   arc: {
     chainId: 5042,
     symbol: 'USDC',
     rpcUrls: ['https://niorfun.com/api/rpc', 'https://rpc.arc-scan.org'],
-    routerAddress: process.env.ARC_ROUTER_ADDRESS || '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-    wrappedNative: process.env.ARC_WRAPPED_NATIVE || '0x4200000000000000000000000000000000000006',
-    factoryAddress: process.env.ARC_FACTORY_ADDRESS || '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
-    nativeDecimals: 18
+    routerAddress: process.env.ARC_ROUTER_ADDRESS || '0x4E3bcCE28cAf98A143Fd8BD9e4875ccAb3E7bBE0',
+    wrappedNative: process.env.ARC_WRAPPED_NATIVE || '0x3600000000000000000000000000000000000000',
+    factoryAddress: process.env.ARC_FACTORY_ADDRESS || '0xf0db7b58379503491d857dB50AC9ece64c653918',
+    nativeDecimals: 18,
+    dexType: 'uniswapV3'
   },
   ethereum: {
     chainId: 1,
@@ -238,11 +243,29 @@ export class OnChainSwapService {
     return minimum;
   }
 
-  public static async callEvmRpc(chain: string, method: string, params: any[]): Promise<any> {
-    // ARC-AUDIT P0: release containment until network, router and accounting are verified.
-    if (chain.toLowerCase() === 'arc' && method === 'eth_sendRawTransaction') {
-      throw new Error('ARC transactions are disabled pending release verification.');
+  public static async getV3Pool(chain: string, tokenA: string, tokenB: string): Promise<{ poolAddress: string; fee: number } | null> {
+    const spec = EVM_SPECS[chain.toLowerCase()];
+    if (!spec || !spec.factoryAddress) return null;
+    const iface = new ethers.Interface([
+      'function getPool(address,address,uint24) view returns (address)'
+    ]);
+    const feeTiers = [10000, 3000, 500, 100];
+    for (const fee of feeTiers) {
+      try {
+        const calldata = iface.encodeFunctionData('getPool', [tokenA, tokenB, fee]);
+        const resHex = await this.callEvmRpc(chain, 'eth_call', [{ to: spec.factoryAddress, data: calldata }, 'latest']);
+        if (resHex && typeof resHex === 'string' && resHex !== '0x') {
+          const [pool] = iface.decodeFunctionResult('getPool', resHex);
+          if (pool && pool !== ethers.ZeroAddress && pool.toLowerCase() !== '0x0000000000000000000000000000000000000000') {
+            return { poolAddress: pool, fee };
+          }
+        }
+      } catch {}
     }
+    return null;
+  }
+
+  public static async callEvmRpc(chain: string, method: string, params: any[]): Promise<any> {
     const spec = EVM_SPECS[chain.toLowerCase()];
     const rpcs = spec ? spec.rpcUrls : ['https://bsc-dataseed.binance.org'];
     if (!rpcs || rpcs.length === 0) {
@@ -281,10 +304,10 @@ export class OnChainSwapService {
       throw lastErr || new Error(`All RPC endpoints failed for chain ${chain}`);
     }
 
-    // 只读方法：Fastest-Wins 快速竞速并发模式 (超时 2500ms)，优先最快可用节点返回
+    // 只读方法：Fastest-Wins 快速竞速并发模式 (超时 4000ms)，优先最快可用节点返回
     try {
       const raceBatch = rpcs.slice(0, 3);
-      return await Promise.any(raceBatch.map(url => executeSingle(url, 2500)));
+      return await Promise.any(raceBatch.map(url => executeSingle(url, 4000)));
     } catch (raceErr: any) {
       // 若首批竞速均失败且存在更多节点，继续 fallback
       if (rpcs.length > 3) {
@@ -434,7 +457,7 @@ export class OnChainSwapService {
     const startTime = Date.now();
     const orderId = crypto.randomUUID();
     const targetChain = params.chain.toLowerCase();
-    if (['arc', 'sei', 'xlayer', 'ton', 'aptos'].includes(targetChain)) {
+    if (['sei', 'xlayer', 'ton', 'aptos'].includes(targetChain)) {
       return { orderId, chain: targetChain, action: 'BUY', tokenAddress: params.tokenAddress,
         tokenSymbol: 'TOKEN', tokenName: 'Token', amountIn: 0, estimatedAmountOut: 0,
         txHash: '', status: 'FAILED', isRealOnChain: false, executionTimeMs: Date.now() - startTime,
@@ -679,21 +702,115 @@ export class OnChainSwapService {
             : CONFIG.PROTOCOL_FEE_RECIPIENT_EVM;
           const feePlan = createEvmBuyFeePlan(grossWei, CONFIG.PROTOCOL_FEE_RATE_SCALED, feeRecipient);
           const valueWei = feePlan.net;
-          const minimum = await this.minimumOutput(targetChain, valueWei, path, params.slippagePct);
-          const calldata = routerIface.encodeFunctionData('swapExactETHForTokensSupportingFeeOnTransferTokens', [
-            minimum,
-            path,
-            wallet.address,
-            deadline
-          ]);
+          let calldata = '';
+          let txValue = valueWei;
+          let estimatedGas = 350000n;
+
+          if (evmSpec.dexType === 'uniswapV3') {
+            // Arc Network (EVM Uniswap V3) 执行逻辑
+            const usdcAddr = evmSpec.wrappedNative; // 0x3600000000000000000000000000000000000000 (系统 USDC 双向镜像合约)
+            const usdcUnits = BigInt(Math.floor(params.amountNative * 1e6));
+            const arcFeePlan = createEvmBuyFeePlan(usdcUnits, CONFIG.PROTOCOL_FEE_RATE_SCALED, feeRecipient);
+            const valueUnits = arcFeePlan.net;
+
+            const v3Pool = await this.getV3Pool(targetChain, usdcAddr, params.tokenAddress);
+            if (!v3Pool) {
+              return {
+                orderId, chain: targetChain, action: 'BUY', tokenAddress: params.tokenAddress,
+                tokenSymbol: symbol, tokenName: name, amountIn: params.amountNative, estimatedAmountOut: 0,
+                txHash: '', status: 'FAILED', isRealOnChain: false, executionTimeMs: Date.now() - startTime,
+                error: `未在 ${targetChain} 链上定位到代币流动性池 (Uniswap V3 Pool)`
+              };
+            }
+
+            // 查询代币精度 Decimals
+            let tokenDecimals = 18;
+            const erc20Iface = new ethers.Interface(ERC20_ABI);
+            try {
+              const decData = erc20Iface.encodeFunctionData('decimals');
+              const decHex = await this.callEvmRpc(targetChain, 'eth_call', [{ to: params.tokenAddress, data: decData }, 'latest']);
+              if (decHex && typeof decHex === 'string' && decHex !== '0x') {
+                tokenDecimals = parseInt(decHex, 16) || 18;
+              }
+            } catch {}
+
+            // 计算滑点保底输出
+            let minOut = 1n;
+            if (market.priceNative && market.priceNative > 0) {
+              const expectedTokens = Number(valueUnits) / 1e6 / market.priceNative;
+              const slipMultiplier = (100 - (params.slippagePct || 5)) / 100;
+              const minTokens = Math.max(expectedTokens * slipMultiplier, 0);
+              const safeDecimals = Math.min(Math.max(tokenDecimals, 0), 18);
+              minOut = ethers.parseUnits(minTokens.toFixed(safeDecimals), tokenDecimals);
+              if (minOut <= 0n) minOut = 1n;
+            }
+
+            // 判断 zeroForOne (token0 -> token1)
+            const isZeroForOne = usdcAddr.toLowerCase() < params.tokenAddress.toLowerCase();
+            const poolBigInt = BigInt(v3Pool.poolAddress);
+            const poolParam = isZeroForOne ? poolBigInt : ((1n << 255n) | poolBigInt);
+            const pools = [poolParam];
+
+            // 检查并自动按需执行 USDC Allowance 授权
+            let currentAllowance = 0n;
+            try {
+              const allowData = erc20Iface.encodeFunctionData('allowance', [wallet.address, evmSpec.routerAddress]);
+              const allowHex = await this.callEvmRpc(targetChain, 'eth_call', [{ to: usdcAddr, data: allowData }, 'latest']);
+              if (allowHex && typeof allowHex === 'string' && allowHex !== '0x') {
+                currentAllowance = BigInt(allowHex);
+              }
+            } catch {}
+
+            if (currentAllowance < usdcUnits) {
+              console.log(`[OnChainSwap] Insufficient USDC allowance for router ${evmSpec.routerAddress}, sending approve...`);
+              const approveTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (approveNonce) => {
+                const approveGasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
+                const approveTx = {
+                  to: usdcAddr,
+                  value: 0n,
+                  data: erc20Iface.encodeFunctionData('approve', [evmSpec.routerAddress, ethers.MaxUint256]),
+                  nonce: approveNonce,
+                  gasLimit: 70000n,
+                  gasPrice: BigInt(approveGasPriceHex || '0x4a817c800'),
+                  chainId: evmSpec.chainId
+                };
+                const signedApprove = await wallet.signTransaction(approveTx);
+                return await this.callEvmRpc(targetChain, 'eth_sendRawTransaction', [signedApprove]);
+              });
+              console.log(`[OnChainSwap] USDC Approve broadcast: ${approveTxHash}, waiting for confirmation...`);
+              const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 15000);
+              if (approveRes.status === 'FAILED') {
+                throw new Error(`USDC 授权交易被链上回滚 (tx: ${approveTxHash})`);
+              }
+            }
+
+            const v3RouterIface = new ethers.Interface([
+              'function uniswapV3SwapTo(uint256 receiver, uint256 amount, uint256 minReturn, uint256[] pools) returns (uint256)'
+            ]);
+            calldata = v3RouterIface.encodeFunctionData('uniswapV3SwapTo', [
+              BigInt(wallet.address),
+              valueUnits,
+              minOut,
+              pools
+            ]);
+            txValue = 0n; // msg.value 必须为 0
+          } else {
+            const minimum = await this.minimumOutput(targetChain, valueWei, path, params.slippagePct);
+            calldata = routerIface.encodeFunctionData('swapExactETHForTokensSupportingFeeOnTransferTokens', [
+              minimum,
+              path,
+              wallet.address,
+              deadline
+            ]);
+            txValue = valueWei;
+          }
 
           // 1. Pre-flight 仿真模拟 (eth_estimateGas)
-          let estimatedGas = 350000n;
           try {
             const simParams = [{
               from: wallet.address,
               to: evmSpec.routerAddress,
-              value: '0x' + valueWei.toString(16),
+              value: '0x' + txValue.toString(16),
               data: calldata
             }];
             const estHex = await this.callEvmRpc(targetChain, 'eth_estimateGas', simParams);
@@ -744,7 +861,7 @@ export class OnChainSwapService {
 
             const txDraft = {
               to: evmSpec.routerAddress,
-              value: valueWei,
+              value: txValue,
               data: calldata,
               nonce,
               gasLimit: estimatedGas,
@@ -1013,7 +1130,7 @@ export class OnChainSwapService {
     const startTime = Date.now();
     const orderId = crypto.randomUUID();
     const targetChain = params.chain.toLowerCase();
-    if (['arc', 'sei', 'xlayer', 'ton', 'aptos'].includes(targetChain)) {
+    if (['sei', 'xlayer', 'ton', 'aptos'].includes(targetChain)) {
       return { orderId, chain: targetChain, action: 'SELL', tokenAddress: params.tokenAddress,
         tokenSymbol: 'TOKEN', tokenName: 'Token', amountIn: 0, estimatedAmountOut: 0,
         txHash: '', status: 'FAILED', isRealOnChain: false, executionTimeMs: Date.now() - startTime,
@@ -1273,8 +1390,6 @@ export class OnChainSwapService {
           throw new Error('计算出的卖出代币数量为 0，请检查代币精度与持仓');
         }
 
-        const minimum = await this.minimumOutput(targetChain, rawTokenAmount, path, params.slippagePct);
-
         // 2. 检查并按需自动授权 ERC20 Allowance (BUG-010 按需精确授权 & 检验回执)
         let currentAllowance = 0n;
         try {
@@ -1339,13 +1454,61 @@ export class OnChainSwapService {
           }
         }
 
-        const calldata = routerIface.encodeFunctionData('swapExactTokensForETHSupportingFeeOnTransferTokens', [
-          rawTokenAmount,
-          minimum,
-          path,
-          wallet.address,
-          deadline
-        ]);
+        let calldata = '';
+        let minimum = 0n;
+
+        if (evmSpec.dexType === 'uniswapV3') {
+          const usdcAddr = evmSpec.wrappedNative;
+          const v3Pool = await this.getV3Pool(targetChain, params.tokenAddress, usdcAddr);
+          if (!v3Pool) {
+            return {
+              orderId,
+              chain: targetChain,
+              action: params.sellInitial ? 'SELL_INITIAL' : `SELL_${params.sellPercentage}%`,
+              tokenAddress: params.tokenAddress,
+              tokenSymbol: symbol,
+              tokenName: name,
+              amountIn: tokensToSell,
+              estimatedAmountOut: 0,
+              txHash: '',
+              status: 'FAILED',
+              isRealOnChain: false,
+              executionTimeMs: Date.now() - startTime,
+              error: `未在 ${targetChain} 链上定位到代币流动性池 (Uniswap V3 Pool)`
+            };
+          }
+
+          // zeroForOne: token0 -> token1
+          const isZeroForOne = params.tokenAddress.toLowerCase() < usdcAddr.toLowerCase();
+          const poolBigInt = BigInt(v3Pool.poolAddress);
+          const poolParam = isZeroForOne ? poolBigInt : ((1n << 255n) | poolBigInt);
+          const pools = [poolParam];
+
+          // 估算预期回款 USDC
+          const sellExpectedNative = (market.priceNative && market.priceNative > 0)
+            ? (tokensToSell * market.priceNative)
+            : 0.1;
+          const minReturnUnits = BigInt(Math.floor(sellExpectedNative * (1 - (params.slippagePct || 5) / 100) * 1e6));
+
+          const v3RouterIface = new ethers.Interface([
+            'function uniswapV3SwapTo(uint256 receiver, uint256 amount, uint256 minReturn, uint256[] pools) returns (uint256)'
+          ]);
+          calldata = v3RouterIface.encodeFunctionData('uniswapV3SwapTo', [
+            BigInt(wallet.address),
+            rawTokenAmount,
+            minReturnUnits > 0n ? minReturnUnits : 1n,
+            pools
+          ]);
+        } else {
+          minimum = await this.minimumOutput(targetChain, rawTokenAmount, path, params.slippagePct);
+          calldata = routerIface.encodeFunctionData('swapExactTokensForETHSupportingFeeOnTransferTokens', [
+            rawTokenAmount,
+            minimum,
+            path,
+            wallet.address,
+            deadline
+          ]);
+        }
 
         // 3. Pre-flight 仿真模拟 (eth_estimateGas)
         let estimatedGas = 350000n;
