@@ -3,11 +3,14 @@
 ## 1. 项目概览与关键架构 (Quick Reference)
 
 - **核心目录**: `bot-gateway-ts` (TypeScript + grammY 架构)
-- **多链支持**: 10 条主流链 (BSC, Robinhood, Sui, Base, Solana, Ethereum, Sei, TON, XLayer, Aptos)。
+- **多链支持**: 11 条主流链 (Arc Chain 5042, BSC, Robinhood, Sui, Base, Solana, Ethereum, Sei, TON / Gram, XLayer, Aptos)。
   - 全公链与 Sui 链行为 100% 对齐：0 余额真实拦截、私钥签名与广播、节点高可用容灾。
+  - TON (Gram) 交易目前保持安全禁用 (Fail-closed)。
+- **公共演示定位**: 官方公共 Bot [@wctibot](https://t.me/wctibot) 仅作为 Demo 演示产品，独立商用需配置专属 Bot。
+- **安全回归测试**: 运行 `node --test tests/*.test.mjs` 必须 100% 通过全量 38 项测试（`pass 38, fail 0`）。
 - **国际化系统**: `src/services/i18nService.ts` 完整支持 11 种语言 (`zh-hans`, `zh-hant`, `en`, `ru`, `vi`, `ko`, `ja`, `es`, `tr`, `pl`, `de`)。新增任何菜单或按钮文案必须同步全量 11 种语言。
 - **代币短 Key 体系**: `src/services/tokenKeyHelper.ts` 负责将长合约地址与 Move TypeTag 映射为短 Key，杜绝 Telegram 64 字节 Inline Callback 溢出。
-- **MCP 智能体生态**: `src/mcp/` 实现了双模 MCP (STDIO: `npm run mcp`, HTTP/SSE: 端口 38088 /sse)，支持 14 项全链交易与风控工具，TG 菜单支持 `/mcp`。
+- **MCP 智能体生态**: `src/mcp/` 实现了双模 MCP (STDIO: `npm run mcp`, HTTP/SSE: 端口 38088 /sse)，支持 16 项全链交易与风控工具，TG 菜单支持 `/mcp`。
 - **构建与进程重启规范**:
   ```bash
   # 1. 编译 TypeScript

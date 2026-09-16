@@ -8,13 +8,17 @@
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg?logo=go)](https://go.dev/)
 [![Telegram Bot API](https://img.shields.io/badge/Telegram_Bot-grammY-2CA5E0.svg?logo=telegram)](https://grammy.dev/)
 [![MCP Standard](https://img.shields.io/badge/Protocol-Model%20Context%20Protocol%20(MCP)-purple.svg)](https://modelcontextprotocol.io/)
-[![Multi-Chain](https://img.shields.io/badge/Chains-10%20Chains%20Supported-brightgreen.svg)](#-supported-blockchains)
+[![Multi-Chain](https://img.shields.io/badge/Chains-11%20Chains%20Supported-brightgreen.svg)](#-supported-blockchains)
+[![Tests](https://img.shields.io/badge/Tests-38%2F38%20Passed-success.svg)](#-security--risk-control)
 [![Anti-MEV](https://img.shields.io/badge/Security-Anti--MEV%20%26%20Honeypot%20Shield-red.svg)](#-institutional-grade-risk-control)
 
 **High-speed, Institutional-grade Telegram Trading Bot & Autonomous AI Agent MCP Server for Meme Coins, DEX Aggregation, and On-Chain Sniping.**  
-*Commercial-grade 1:1 reproduction of @PinkPunkTradingBot with world-first native support for Robinhood Chain (Arbitrum Orbit L2, Chain ID 4663).*
+*Commercial-grade 1:1 reproduction of @PinkPunkTradingBot with world-first native support for Robinhood Chain (Arbitrum Orbit L2) and Arc Chain (5042).*
 
 [English](./README.md) | [简体中文](./README_zh.md)
+
+> 🤖 **Public Demo Bot (演示产品)**: [@wctibot](https://t.me/wctibot)  
+> ⚠️ **Important Product Notice**: `@wctibot` is strictly an official public **Demo Prototype (演示产品)** for feature demonstration, community UX evaluation, and AI agent testing. For production, commercial trading, and asset custody, please self-host your own bot instance using the source code and your own private credentials.
 
 > ⚡ **Engineering Revelation & Attribution**: This entire project was reverse-engineered and reconstructed 1:1 by combining advanced AI reasoning with the groundbreaking **Telegram Bot MCP (Model Context Protocol)** engine from [**WhiteCat TG Assistant Commercial Edition (tg-sender-releases)**](https://github.com/ChiSonKon/tg-sender-releases). If you are building, reverse-engineering, probing, or automating Telegram bots, multi-account marketing, and Web3 community growth, make sure to explore the foundational powerhouse 👉 [**ChiSonKon/tg-sender-releases**](https://github.com/ChiSonKon/tg-sender-releases) ⭐
 
@@ -72,7 +76,9 @@ In addition to full-suite Telegram trading features (sniping, copy-trading, limi
 ## 🌟 Key Features
 
 - ⚡ **Sub-15ms Execution**: Rust asynchronous execution pipeline with pre-warmed RPC connection pooling and hardware-accelerated transaction serialization.
-- 🌐 **10-Chain Matrix**: Seamless trading across Robinhood Chain, Solana, Base, BSC, Sui, TON, Ethereum, Sei, XLayer, and Aptos.
+- 🌐 **11-Chain Matrix**: Seamless trading across Arc Chain, Robinhood Chain, Solana, Base, BSC, Sui, TON / Gram, Ethereum, Sei, XLayer, and Aptos.
+- 📡 **Group Chat CA Sniffer & ASCII Radar**: Full-spectrum regex penetration across EVM (42-hex), Solana (strict Base58), Sui (Move/ObjectID), and TON / Gram non-bounceable addresses. Outputs group-safe Monospace ASCII radar cards with zero privacy/balance leakage, paired with 1-click DeepLinks (`https://t.me/wctibot?start=trade_<token>_<chain>`).
+- ⛽ **Turbo EVM Gas Engine & Nonce Serialization**: Dynamic latest-block `baseFeePerGas` fetching with +35% Turbo pricing and strict `EvmNonceManager.reset` recovery, achieving confirmed execution within 2.66s without mempool stalling.
 - 🤖 **Native MCP AI Agent Server**: Exposes 16 standard tools for AI assistants with dual-transport support (STDIO & SSE).
 - 🔥 **Meme Radar & Anti-Rug Engine**: Multi-chain real-time meme discovery, funded wallet cluster analysis (penetrating insider rat positions), smart-money vs. KOL pump trap detection, and dev reputation scoring.
 - 🎯 **Instant CA Recognition**: Send any Contract Address or Move TypeTag to Telegram to instantly view token metrics, honeypot safety audit, and launch 1-click buy/sell console.
@@ -88,12 +94,13 @@ In addition to full-suite Telegram trading features (sniping, copy-trading, limi
 
 | Chain | Virtual Machine | Primary DEX / Router | MEV / Fast Route | Special Features |
 | :--- | :--- | :--- | :--- | :--- |
+| **Arc Chain** | EVM (Circle Arc) | Uniswap V3 | BaseFee + 35% Turbo | ★ **Verified on-chain (Chain ID: 5042)**, 18-decimal native USDC |
 | **Robinhood Chain** | Arbitrum Orbit L2 (EVM) | Uniswap V2 / V3 | 250ms FCFS direct sequencer | ★ **World-first native support (Chain ID: 4663)** |
 | **Solana** | SVM | Raydium, Jupiter | Jito Bundle Relay | Sub-second sniping, Anti-MEV sandwich protection |
 | **Binance Smart Chain (BSC)** | EVM | PancakeSwap V2 / V3 | BSC MEV Private RPC | High-frequency meme coin trading |
 | **Base** | EVM (OP Stack) | Uniswap V3, Aerodrome | Flashbots Builder | Coinbase L2 ecosystem trending pairs |
 | **Sui** | Move VM | Bluefin 7k Aggregator, Cetus | Sui Multi-Node Failover | Move TypeTag short-key mapping, 0-balance intercept |
-| **TON** | TVM | DeDust, STON.fi | Native TON RPC | Seamless Telegram mini-app & wallet alignment |
+| **TON / Gram** | TVM | DeDust, STON.fi | Native TON RPC | The Open Network / Gram ecosystem. *Swaps currently safely disabled pending router rollout.* |
 | **Ethereum** | EVM | Uniswap V2 / V3 | Flashbots Protect | Blue-chip tokens & deep liquidity routing |
 | **Sei** | Sei EVM | DragonSwap | Turbo Block Engine | Sub-second finality trading |
 | **XLayer** | Polygon CDK L2 | OKX DEX Aggregator | OKX Private Relay | OKX L2 native bridge integration |
@@ -387,10 +394,13 @@ Contributions, issues, and feature proposals are warmly welcome! Please feel fre
 This project is open-sourced under the [MIT License](./LICENSE).
 
 
-## Protocol Fee / 开源维护分成（开发中）
+## Protocol Fee / 开源维护分成
 
 本开源项目默认包含 0.6% 的开发者生态维护税（Protocol Fee），用于支持白猫项目的开源开发与节点基础设施维护。使用者可在 `.env` 中通过 `PROTOCOL_FEE_RATE=0` 自主调零或修改为你自己的钱包地址。
 
-**上述为完整功能的目标说明。当前代码已完成 EVM（BNB/ETH/Base）、Solana（SOL）和 Sui 原生资产的分成切分逻辑与单元测试回归（31/31 测试通过），TON 交易仍保持安全禁用。生产环境上线前仍需配置开发者冷钱包收款地址并由使用者确认链上结算模式。** 收款地址配置详见 `.env.example`，部署注意事项请参阅 [部署说明](DEPLOYMENT.md) 和 [接续文档](PROTOCOL_FEE_HANDOFF.md)。
+**当前实现状态**：
+- **EVM（BSC / ETH / Base / Arc）**、**Solana（SOL）** 和 **Sui** 原生资产的分成切分逻辑已全部实装并通过全量 38 项安全回归测试（**38/38 测试 100% 通过**，`pass 38, fail 0`）。
+- **TON / Gram**：TON 链（现亦称 Gram 生态）由于 DEX 路由还在进行深度安全适配，**交易执行目前仍严格保持安全禁用（Fail-closed）**。预设的 TON/Gram 开发者生态冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`（Non-bounceable 格式），在 TON 路由实装开放前不会产生任何链上分成交互。
+- 生产环境上线前请在 `.env` 中确认开发者冷钱包收款地址（参见 `.env.example`），部署注意事项请参阅 [部署说明](DEPLOYMENT.md) 和 [接续文档](PROTOCOL_FEE_HANDOFF.md)。
 
 Fee arithmetic uses integer base units; the default configured rate is 0.006 (0.6%), capped at 0.020 (2%). Set `PROTOCOL_FEE_RATE=0` to disable. No developer recipient addresses are fabricated. Main-menu and referral-detail GitHub buttons link to [the official source repository](https://github.com/ChiSonKon/whitecat-trading-bot).

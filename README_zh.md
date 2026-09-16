@@ -8,12 +8,16 @@
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg?logo=go)](https://go.dev/)
 [![Telegram Bot API](https://img.shields.io/badge/Telegram_Bot-grammY-2CA5E0.svg?logo=telegram)](https://grammy.dev/)
 [![MCP](https://img.shields.io/badge/Protocol-MCP%20(Model%20Context%20Protocol)-purple.svg)](https://modelcontextprotocol.io/)
-[![Multi-Chain](https://img.shields.io/badge/Chains-10%20Chains%20Supported-brightgreen.svg)](#-支持的-10-大主流公链)
+[![Multi-Chain](https://img.shields.io/badge/Chains-11%20Chains%20Supported-brightgreen.svg)](#-支持的-11-大主流公链)
+[![Tests](https://img.shields.io/badge/Tests-38%2F38%20全量通过-success.svg)](#-安全与风控)
 
 **生产级高频多链 Telegram 打狗交易机器人 & AI Agent MCP 智能体内核**  
-*全面对标 @PinkPunkTradingBot 商业级功能，全球首发深度支持 Robinhood Chain（Arbitrum Orbit L2）！*
+*全面对标 @PinkPunkTradingBot 商业级功能，全球首发深度支持 Robinhood Chain（Arbitrum Orbit L2）与 Arc Chain（5042）！*
 
 [English](./README.md) | [简体中文](./README_zh.md)
+
+> 🤖 **官方公测与演示机器人**: [@wctibot](https://t.me/wctibot)  
+> ⚠️ **重要产品定位说明**：`@wctibot` 仅作为白猫系统的**官方公共演示产品 (Demo Prototype)**，供广大开发者与交易者体验 UI 交互、全链 CA 嗅探与 MCP 智能体协议。在进行大额真实资产交易或商业化运营时，请务必根据本项目源码和部署说明自行搭建私有独立节点！
 
 > 💡 **核心逆向揭秘与致谢**：本项目并非凭空从零手写，而是**深度借助了 [白猫 TG 商业助手 (tg-sender-releases)](https://github.com/ChiSonKon/tg-sender-releases) 独创的「TG 机器人 MCP」协议工具，结合顶级 AI 智能体自主逆向、像素级解构并重构而成**！如果你也想轻松探查、逆向、自动化运营或矩阵裂变 Telegram 机器人生态，强烈建议必看神器 👉 [**ChiSonKon/tg-sender-releases**](https://github.com/ChiSonKon/tg-sender-releases) ⭐
 
@@ -23,7 +27,7 @@
 
 ## 🔮 逆向诞生记：如何借助「白猫 TG 助手 MCP」与 AI 极速复刻商业大作？
 
-很多开发者好奇：**为什么我们能在极短时间内对标业界顶流商业打狗机器人 @PinkPunkTradingBot，完成 10 条公链、毫秒级撮合、貔貅风控以及 MCP 智能体全生态的 1:1 像素级复现与增强？**
+很多开发者好奇：**为什么我们能在极短时间内对标业界顶流商业打狗机器人 @PinkPunkTradingBot，完成 11 条公链、毫秒级撮合、貔貅风控以及 MCP 智能体全生态的 1:1 像素级复现与增强？**
 
 **这背后不可或缺的核心生产力武器，正是 [白猫 TG 商业助手 (tg-sender-releases)](https://github.com/ChiSonKon/tg-sender-releases)！**
 
@@ -48,8 +52,10 @@
 ### 🌟 核心特性
 
 - ⚡ **极致时延**：Rust 异步交易引擎，链上签名与广播准备时延 `< 15ms`。
-- 🌐 **10 链矩阵**：原生打通 Robinhood Chain、Solana、Base、BSC、Sui、TON、Ethereum、Sei、XLayer、Aptos。
-- 🛡 **全天候风控**：内置 Honeypot（貔貅盘）沙盒模拟、买卖税拦截、防夹（Anti-MEV / Jito Bundle）与恶意代码扫描。
+- 🌐 **11 链全矩阵**：原生打通 Arc Chain、Robinhood Chain、Solana、Base、BSC、Sui、TON / Gram、Ethereum、Sei、XLayer、Aptos。
+- 📡 **群聊场景原生集成与全链 CA 嗅探**：支持 EVM (42-hex)、Solana (严格 Base58 校验)、Sui (Move/ObjectID)、TON / Gram (非反弹格式) 全格式穿透。专属 Monospace ASCII 科技雷达卡片，绝对杜绝个人持仓/隐私泄露，一键 DeepLink (`https://t.me/wctibot?start=trade_<token>_<chain>`) 唤醒私聊控制台。
+- ⛽ **EVM 动态 Turbo Gas 与 Nonce 串行锁**：自动读取最新区块 `baseFeePerGas` 叠加 +35% Turbo 溢价，保障秒级确认（实测 2.66s 完成真实买入），彻底消除交易在 mempool 中 PENDING 滞留，失败时自动触发 `EvmNonceManager.reset` 恢复。
+- 🛡 **全天候风控与安全回归**：内置 Honeypot（貔貅盘）沙盒模拟、买卖税拦截、防夹（Anti-MEV / Jito Bundle）与恶意代码扫描，全量 38 项安全回归测试 100% 绿灯（`pass 38, fail 0`）。
 - 🤖 **MCP 智能体生态**：支持 STDIO 与 HTTP/SSE 双模传输协议，提供 16 项标准化交易与风控工具。
 - 🔥 **爆点雷达与老鼠仓穿透**：全链实时爆点挖掘，资金链路同源聚类（穿透庄家/Dev 分仓老鼠仓），聪明钱与 KOL 喊单接盘陷阱识别，开发者发币信用画像。
 - 🎯 **一键智能交易**：发送合约地址（CA）毫秒级自动解析行情、安全评级，一键买入、快捷防跑卖出、移动追踪止盈止损。
@@ -58,16 +64,17 @@
 
 ---
 
-## 🌐 支持的 10 大主流公链
+## 🌐 支持的 11 大主流公链
 
 | 公链名称 | 链类型 / 虚拟机 | 核心路由 / DEX | 防夹 / 极速通道 | 特色支持 |
 | :--- | :--- | :--- | :--- | :--- |
+| **Arc Chain** | EVM (Circle Arc) | Uniswap V3 | BaseFee + 35% Turbo | ★ **真实链上已验证 (Chain ID: 5042)**，18 位原生 USDC |
 | **Robinhood Chain** | Arbitrum Orbit L2 (EVM) | Uniswap V2/V3 | 250ms FCFS 排序直连 | ★ **全球首发集成 (Chain ID: 4663)** |
 | **Solana** | SVM | Raydium, Jupiter | Jito MEV Bundle 保护 | 极速防夹、新池狙击 |
 | **Binance Smart Chain (BSC)** | EVM | PancakeSwap V2/V3 | BSC MEV Private RPC | 高频土狗打狗 |
 | **Base** | EVM (OP Stack) | Uniswap V3, Aerodrome | Flashbots Builder | Coinbase L2 热点币狙击 |
 | **Sui** | Move VM | Bluefin, Cetus | Sui Multi-Node Failover | Move 原生代币短 Key 体系 |
-| **TON** | TVM | DeDust, STON.fi | Direct TON RPC | Telegram 原生生态集成 |
+| **TON / Gram** | TVM | DeDust, STON.fi | Direct TON RPC | Telegram 原生生态集成 (*交易执行目前保持安全禁用*) |
 | **Ethereum** | EVM | Uniswap V2/V3 | Flashbots Protect | 经典主流资产 |
 | **Sei** | Sei EVM | DragonSwap | Turbo Block Time | 亚秒级极速撮合 |
 | **XLayer** | Polygon CDK L2 | OKX DEX | OKX Private Relay | OKX 官方 L2 网络 |
@@ -244,3 +251,16 @@ python3 tests/test_e2e_flow.py
 ## 📄 开源许可证
 
 本项目基于 [MIT License](./LICENSE) 开源。
+
+---
+
+## 💰 Protocol Fee / 开源维护分成
+
+本项目默认包含 0.6% 的开发者生态维护税（Protocol Fee），用于支持白猫项目的开源开发与节点基础设施维护。使用者可在 `.env` 中通过 `PROTOCOL_FEE_RATE=0` 自主调零或修改为你自己的钱包地址。
+
+**当前各链实装与运行状态**：
+- **EVM（BSC / ETH / Base / Arc）**、**Solana（SOL）** 与 **Sui**：分成切分逻辑已全部实装并通过全量 38 项安全回归测试（**38/38 测试 100% 通过**，`pass 38, fail 0`）。
+- **TON / Gram**：TON 链（现亦称 Gram 生态）由于 TVM 路由还在进行深度安全适配，**交易执行目前严格保持安全禁用（Fail-closed）**。预设的 TON/Gram 开发者生态冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`（Non-bounceable 格式），在 TON 路由实装开放前不会产生任何链上分成交互。
+- 生产环境上线前请在 `.env` 中确认开发者冷钱包收款地址（参见 `.env.example`），部署注意事项请参阅 [部署说明](DEPLOYMENT.md) 和 [接续文档](PROTOCOL_FEE_HANDOFF.md)。
+
+费率计算采用整型最小单位计算，默认配置为 0.006 (0.6%)，上限 0.020 (2%)。可通过在 `.env` 中设置 `PROTOCOL_FEE_RATE=0` 彻底免除。主菜单及返佣明细中的 GitHub 链接均指向 [官方开源代码仓库](https://github.com/ChiSonKon/whitecat-trading-bot)。
