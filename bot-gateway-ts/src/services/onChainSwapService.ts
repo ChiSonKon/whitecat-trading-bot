@@ -866,6 +866,9 @@ export class OnChainSwapService {
           const realTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (nonce) => {
             const gasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
             let gasPrice = BigInt(gasPriceHex || '0x4a817c800');
+            // EVM 极速交易 Gas 加价缓冲：基础加价 15%，Turbo 模式加价 25%，防止因网络拥堵或 baseFee 波动卡在 mempool
+            const premium = params.priorityFeeTier === 'turbo' ? 125n : 115n;
+            gasPrice = (gasPrice * premium) / 100n;
             if (params.gasTip && params.gasTip > 0 && estimatedGas > 0n) {
               const tipUnits = nativeBaseUnits(params.gasTip.toString(), nativeDecimals);
               const tipPerGas = tipUnits / estimatedGas;
@@ -1568,6 +1571,9 @@ export class OnChainSwapService {
         const realTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (nonce) => {
           const gasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
           let gasPrice = BigInt(gasPriceHex || '0x4a817c800');
+          // EVM 极速交易 Gas 加价缓冲：基础加价 15%，Turbo 模式加价 25%，防止因网络拥堵或 baseFee 波动卡在 mempool
+          const premium = params.priorityFeeTier === 'turbo' ? 125n : 115n;
+          gasPrice = (gasPrice * premium) / 100n;
           if (params.gasTip && params.gasTip > 0 && estimatedGas > 0n) {
             const tipUnits = nativeBaseUnits(params.gasTip.toString(), nativeDecimals);
             const tipPerGas = tipUnits / estimatedGas;

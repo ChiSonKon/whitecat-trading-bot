@@ -1780,6 +1780,9 @@ bot.on('callback_query:data', async ctx => {
     });
 
     if (result.status === 'PENDING') {
+      ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
+      syncWalletBalances(user, targetChain).catch(() => {});
+      syncTokenHoldings(user, targetChain, tokenAddress).catch(() => {});
       const txUrl = getChainTxUrl(targetChain, result.txHash);
       const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
       const isZh = user.lang !== 'en';
@@ -2578,10 +2581,14 @@ bot.on('message:text', async ctx => {
         tokenAddress,
         amountNative: amt,
         slippagePct: user.tradeConfig.slippage,
-        priorityFeeTier: user.tradeConfig.mode === 'fast' ? 'turbo' : 'normal'
+        priorityFeeTier: user.tradeConfig.mode === 'fast' ? 'turbo' : 'normal',
+        gasTip: SettingsMenu.getEffectiveTip(targetChain, user.tradeConfig)
       });
 
       if (result.status === 'PENDING') {
+        ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
+        syncWalletBalances(user, targetChain).catch(() => {});
+        syncTokenHoldings(user, targetChain, tokenAddress).catch(() => {});
         const txUrl = getChainTxUrl(targetChain, result.txHash);
         const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
         const isZh = user.lang !== 'en';
