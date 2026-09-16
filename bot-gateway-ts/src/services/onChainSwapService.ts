@@ -366,7 +366,7 @@ export class OnChainSwapService {
     return msg || 'EVM 链上模拟执行失败';
   }
 
-  public static async pollEvmReceipt(chain: string, txHash: string, maxWaitMs: number = 12000): Promise<{ status: 'SUCCESS' | 'FAILED' | 'PENDING'; gasUsed?: number }> {
+  public static async pollEvmReceipt(chain: string, txHash: string, maxWaitMs: number = 25000): Promise<{ status: 'SUCCESS' | 'FAILED' | 'PENDING'; gasUsed?: number }> {
     const pollStart = Date.now();
     const pollInterval = (chain.toLowerCase() === 'arc' || chain.toLowerCase() === 'base') ? 500 : 1000;
     while (Date.now() - pollStart < maxWaitMs) {
@@ -792,7 +792,7 @@ export class OnChainSwapService {
                 return await this.callEvmRpc(targetChain, 'eth_sendRawTransaction', [signedApprove]);
               });
               console.log(`[OnChainSwap] USDC Approve broadcast: ${approveTxHash}, waiting for confirmation...`);
-              const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 15000);
+              const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 30000);
               if (approveRes.status === 'FAILED') {
                 throw new Error(`USDC 授权交易被链上回滚 (tx: ${approveTxHash})`);
               }
@@ -892,7 +892,7 @@ export class OnChainSwapService {
             console.log(`[OnChainSwap] 📡 Real EVM Buy broadcast to mempool on ${targetChain}! Hash: ${realTxHash}`);
 
             // 2. 真实回执确认 (Receipt Verification)
-            const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 12000);
+            const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 25000);
 
             if (receiptRes.status === 'PENDING') {
               return { orderId, chain: targetChain, action: 'BUY',
@@ -1433,7 +1433,7 @@ export class OnChainSwapService {
             return await this.callEvmRpc(targetChain, 'eth_sendRawTransaction', [signedApprove]);
           });
           console.log(`[OnChainSwap] Approve broadcast: ${approveTxHash}, waiting for confirmation...`);
-          const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 15000);
+          const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 30000);
           if (approveRes.status === 'FAILED') {
             return {
               orderId,
@@ -1592,7 +1592,7 @@ export class OnChainSwapService {
 
         if (realTxHash && typeof realTxHash === 'string' && realTxHash.startsWith('0x')) {
           console.log(`[OnChainSwap] 📡 Real EVM Sell broadcast to mempool on ${targetChain}! Hash: ${realTxHash}`);
-          const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 12000);
+          const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 25000);
 
           if (receiptRes.status === 'PENDING') {
               return { orderId, chain: targetChain, action: params.sellInitial ? 'SELL_INITIAL' : `SELL_${params.sellPercentage}%`,
@@ -2010,7 +2010,7 @@ export class OnChainSwapService {
 
         if (realTxHash && typeof realTxHash === 'string' && realTxHash.startsWith('0x')) {
           console.log(`[OnChainTransfer] 📡 Real EVM transfer broadcast on ${c}! Hash: ${realTxHash}, waiting for receipt...`);
-          const receipt = await this.pollEvmReceipt(c, realTxHash, 15000);
+          const receipt = await this.pollEvmReceipt(c, realTxHash, 25000);
           if (receipt.status === 'FAILED') {
             return {
               success: false,
@@ -2283,7 +2283,7 @@ export class OnChainSwapService {
 
         if (realTxHash && typeof realTxHash === 'string' && realTxHash.startsWith('0x')) {
           console.log(`[OnChainTransfer] 📡 Real EVM ERC20 transfer broadcast on ${c}! Hash: ${realTxHash}, waiting for receipt...`);
-          const receipt = await this.pollEvmReceipt(c, realTxHash, 15000);
+          const receipt = await this.pollEvmReceipt(c, realTxHash, 25000);
           if (receipt.status === 'FAILED') {
             return {
               success: false,

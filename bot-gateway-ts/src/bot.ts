@@ -1780,7 +1780,19 @@ bot.on('callback_query:data', async ctx => {
     });
 
     if (result.status === 'PENDING') {
-      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
+      const txUrl = getChainTxUrl(targetChain, result.txHash);
+      const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+      const isZh = user.lang !== 'en';
+      return ctx.reply(
+        isZh
+          ? `⏳ <b>买入交易已广播至链上，等待区块确认中...</b>\n\n` +
+            `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>\n` +
+            `💡 节点正在确认打包，请勿重复提交。`
+          : `⏳ <b>Buy transaction broadcasted, awaiting confirmation...</b>\n\n` +
+            `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>\n` +
+            `💡 Transaction pending on-chain, please do not resubmit.`,
+        { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+      );
     }
     if (result.status !== 'SUCCESS' || result.error) {
       let failMsg = I18nService.t('msg.buyFailed', user.lang, { error: result.error || 'Execution failed' });
@@ -1995,7 +2007,24 @@ bot.on('callback_query:data', async ctx => {
     });
 
     if (result.status === 'PENDING') {
-      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
+      const txUrl = getChainTxUrl(targetChain, result.txHash);
+      const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+      const isZh = user.lang !== 'en';
+      const isApprove = !!(result.error && result.error.includes('授权'));
+      const titleZh = isApprove ? '代币授权已广播，等待区块确认中...' : '卖出交易已广播，等待区块确认中...';
+      const titleEn = isApprove ? 'Token approval broadcasted, awaiting confirmation...' : 'Sell transaction broadcasted, awaiting confirmation...';
+      const hintZh = isApprove ? '💡 授权区块确认后将自动生效，稍候片刻即可直接卖出。' : '💡 节点正在确认打包，请勿重复提交。';
+      const hintEn = isApprove ? '💡 Approval will take effect once confirmed. You can sell once mined.' : '💡 Transaction pending on-chain, please do not resubmit.';
+      return ctx.reply(
+        isZh
+          ? `⏳ <b>${titleZh}</b>\n\n` +
+            `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>\n` +
+            hintZh
+          : `⏳ <b>${titleEn}</b>\n\n` +
+            `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>\n` +
+            hintEn,
+        { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+      );
     }
     if (result.status !== 'SUCCESS' || result.error) {
       let failMsg = I18nService.t('msg.sellFailed', user.lang, { error: result.error || 'Execution failed' });
@@ -2553,8 +2582,20 @@ bot.on('message:text', async ctx => {
       });
 
       if (result.status === 'PENDING') {
-      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
-    }
+        const txUrl = getChainTxUrl(targetChain, result.txHash);
+        const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+        const isZh = user.lang !== 'en';
+        return ctx.reply(
+          isZh
+            ? `⏳ <b>买入交易已广播至链上，等待区块确认中...</b>\n\n` +
+              `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>\n` +
+              `💡 节点正在确认打包，请勿重复提交。`
+            : `⏳ <b>Buy transaction broadcasted, awaiting confirmation...</b>\n\n` +
+              `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>\n` +
+              `💡 Transaction pending on-chain, please do not resubmit.`,
+          { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+        );
+      }
     if (result.status !== 'SUCCESS' || result.error) {
         let failMsg = I18nService.t('msg.buyFailed', user.lang, { error: result.error || 'Execution failed' });
         if (result.txHash && result.txHash.startsWith('0x')) {
@@ -2680,8 +2721,25 @@ bot.on('message:text', async ctx => {
       });
 
       if (result.status === 'PENDING') {
-      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
-    }
+        const txUrl = getChainTxUrl(targetChain, result.txHash);
+        const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+        const isZh = user.lang !== 'en';
+        const isApprove = !!(result.error && result.error.includes('授权'));
+        const titleZh = isApprove ? '代币授权已广播，等待区块确认中...' : '卖出交易已广播，等待区块确认中...';
+        const titleEn = isApprove ? 'Token approval broadcasted, awaiting confirmation...' : 'Sell transaction broadcasted, awaiting confirmation...';
+        const hintZh = isApprove ? '💡 授权区块确认后将自动生效，稍候片刻即可直接卖出。' : '💡 节点正在确认打包，请勿重复提交。';
+        const hintEn = isApprove ? '💡 Approval will take effect once confirmed. You can sell once mined.' : '💡 Transaction pending on-chain, please do not resubmit.';
+        return ctx.reply(
+          isZh
+            ? `⏳ <b>${titleZh}</b>\n\n` +
+              `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>\n` +
+              hintZh
+            : `⏳ <b>${titleEn}</b>\n\n` +
+              `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>\n` +
+              hintEn,
+          { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+        );
+      }
     if (result.status !== 'SUCCESS' || result.error) {
         let failMsg = I18nService.t('msg.sellFailed', user.lang, { error: result.error || 'Execution failed' });
         if (result.txHash && result.txHash.startsWith('0x')) {
