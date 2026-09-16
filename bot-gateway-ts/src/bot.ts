@@ -151,12 +151,21 @@ bot.command(['start', 'setup', 'menu'], async ctx => {
 
     if (rawPayload.includes('_')) {
       const parts = rawPayload.split('_');
-      tokenKey = parts[0];
-      if (parts.length >= 3) {
-        inviterId = parseInt(parts[1], 10) || null;
+      if (parts.length >= 4 && parts[0] === 'tk') {
+        tokenKey = `tk_${parts[1]}`;
+        inviterId = parseInt(parts[2], 10) || null;
+        chainIdOrName = parts[3];
+      } else if (parts.length === 3 && parts[0] === 'tk') {
+        tokenKey = `tk_${parts[1]}`;
         chainIdOrName = parts[2];
-      } else if (parts.length === 2) {
-        chainIdOrName = parts[1];
+      } else {
+        tokenKey = parts[0];
+        if (parts.length >= 3) {
+          inviterId = parseInt(parts[1], 10) || null;
+          chainIdOrName = parts[2];
+        } else if (parts.length === 2) {
+          chainIdOrName = parts[1];
+        }
       }
     } else if (rawPayload.includes('-')) {
       const parts = rawPayload.split('-');
@@ -1541,15 +1550,32 @@ bot.on('callback_query:data', async ctx => {
         }
       }
     } else {
-      const parts = data.split('_');
-      // Format: buy_${tKey}_${idx} or buy_${chain}_${tKey}_${idx}
-      if (parts.length === 3) {
-        rawToken = parts[1];
-        presetIdx = parseInt(parts[2]) || 1;
-      } else if (parts.length >= 4) {
-        embeddedChain = parts[1];
-        rawToken = parts[2];
-        presetIdx = parseInt(parts[3]) || 1;
+      const rest = data.replace(/^buy_/, '');
+      const lastUnderscore = rest.lastIndexOf('_');
+      if (lastUnderscore !== -1) {
+        const lastPart = rest.slice(lastUnderscore + 1);
+        const parsedIdx = parseInt(lastPart, 10);
+        if (!isNaN(parsedIdx)) {
+          presetIdx = parsedIdx;
+          const tokenPart = rest.slice(0, lastUnderscore);
+          const firstUnderscore = tokenPart.indexOf('_');
+          if (firstUnderscore !== -1) {
+            const possibleChain = tokenPart.slice(0, firstUnderscore).toLowerCase();
+            const supportedChains = ['bsc', 'robinhood', 'arc', 'ethereum', 'base', 'solana', 'sui', 'ton', 'xlayer', 'sei', 'aptos'];
+            if (supportedChains.includes(possibleChain)) {
+              embeddedChain = possibleChain;
+              rawToken = tokenPart.slice(firstUnderscore + 1);
+            } else {
+              rawToken = tokenPart;
+            }
+          } else {
+            rawToken = tokenPart;
+          }
+        } else {
+          rawToken = rest;
+        }
+      } else {
+        rawToken = rest;
       }
     }
 
@@ -1639,7 +1665,9 @@ bot.on('callback_query:data', async ctx => {
       totalSoldNative: prevSold
     });
 
+    ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
     if (result.isRealOnChain) {
+      targetWallet.balance = parseFloat(Math.max((targetWallet.balance || 0) - buyAmount, 0).toFixed(4));
       await new Promise(r => setTimeout(r, 1500));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
@@ -1746,15 +1774,32 @@ bot.on('callback_query:data', async ctx => {
       rawToken = parts[0];
       sellPct = parseInt(parts[1]) || 50;
     } else {
-      const parts = data.split('_');
-      // Format: sell_${tKey}_${pct} or sell_${chain}_${tKey}_${pct}
-      if (parts.length === 3) {
-        rawToken = parts[1];
-        sellPct = parseInt(parts[2]) || 50;
-      } else if (parts.length >= 4) {
-        embeddedChain = parts[1];
-        rawToken = parts[2];
-        sellPct = parseInt(parts[3]) || 50;
+      const rest = data.replace(/^sell_/, '');
+      const lastUnderscore = rest.lastIndexOf('_');
+      if (lastUnderscore !== -1) {
+        const lastPart = rest.slice(lastUnderscore + 1);
+        const parsedPct = parseInt(lastPart, 10);
+        if (!isNaN(parsedPct)) {
+          sellPct = parsedPct;
+          const tokenPart = rest.slice(0, lastUnderscore);
+          const firstUnderscore = tokenPart.indexOf('_');
+          if (firstUnderscore !== -1) {
+            const possibleChain = tokenPart.slice(0, firstUnderscore).toLowerCase();
+            const supportedChains = ['bsc', 'robinhood', 'arc', 'ethereum', 'base', 'solana', 'sui', 'ton', 'xlayer', 'sei', 'aptos'];
+            if (supportedChains.includes(possibleChain)) {
+              embeddedChain = possibleChain;
+              rawToken = tokenPart.slice(firstUnderscore + 1);
+            } else {
+              rawToken = tokenPart;
+            }
+          } else {
+            rawToken = tokenPart;
+          }
+        } else {
+          rawToken = rest;
+        }
+      } else {
+        rawToken = rest;
       }
     }
 
@@ -1774,8 +1819,13 @@ bot.on('callback_query:data', async ctx => {
     const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
 
     const lowerCa = tokenAddress.toLowerCase();
-    const holdingObj = user.tokenHoldings.get(lowerCa);
-    const holding = holdingObj ? holdingObj.amount : 0;
+    let holdingObj = user.tokenHoldings.get(lowerCa) || user.tokenHoldings.get(tokenAddress);
+    let holding = holdingObj ? holdingObj.amount : 0;
+    if (holding <= 0) {
+      await syncTokenHoldings(user, targetChain, tokenAddress);
+      holdingObj = user.tokenHoldings.get(lowerCa) || user.tokenHoldings.get(tokenAddress);
+      holding = holdingObj ? holdingObj.amount : 0;
+    }
     if (holding <= 0) {
       await ctx.answerCallbackQuery({ text: I18nService.t('msg.insufficientBalance', user.lang), show_alert: true });
       return ctx.reply(I18nService.t('msg.insufficientBalance', user.lang));
@@ -1822,7 +1872,11 @@ bot.on('callback_query:data', async ctx => {
       user.tokenHoldings.set(lowerCa, holdingObj);
     }
 
+    ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
     if (result.isRealOnChain) {
+      if (targetWallet && result.estimatedAmountOut > 0) {
+        targetWallet.balance = parseFloat(((targetWallet.balance || 0) + result.estimatedAmountOut).toFixed(4));
+      }
       await new Promise(r => setTimeout(r, 1500));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
@@ -2314,7 +2368,9 @@ bot.on('message:text', async ctx => {
       totalSoldNative: prevSold
     });
 
+    ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
     if (result.isRealOnChain) {
+      targetWallet.balance = parseFloat(Math.max((targetWallet.balance || 0) - amt, 0).toFixed(4));
       await new Promise(r => setTimeout(r, 1500));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
@@ -2381,8 +2437,13 @@ bot.on('message:text', async ctx => {
       const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
 
       const lowerCa = tokenAddress.toLowerCase();
-      const holdingObj = user.tokenHoldings.get(lowerCa);
-      const holding = holdingObj ? holdingObj.amount : 0;
+      let holdingObj = user.tokenHoldings.get(lowerCa) || user.tokenHoldings.get(tokenAddress);
+      let holding = holdingObj ? holdingObj.amount : 0;
+      if (holding <= 0) {
+        await syncTokenHoldings(user, targetChain, tokenAddress);
+        holdingObj = user.tokenHoldings.get(lowerCa) || user.tokenHoldings.get(tokenAddress);
+        holding = holdingObj ? holdingObj.amount : 0;
+      }
       if (holding <= 0) {
         user.pendingAction = undefined;
         return ctx.reply(I18nService.t('msg.insufficientBalance', user.lang));
@@ -2426,7 +2487,11 @@ bot.on('message:text', async ctx => {
       user.tokenHoldings.set(lowerCa, holdingObj);
     }
 
+    ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
     if (result.isRealOnChain) {
+      if (targetWallet && result.estimatedAmountOut > 0) {
+        targetWallet.balance = parseFloat(((targetWallet.balance || 0) + result.estimatedAmountOut).toFixed(4));
+      }
       await new Promise(r => setTimeout(r, 1500));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
