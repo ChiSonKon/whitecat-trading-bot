@@ -36,12 +36,12 @@ test('ARC Chain: configuration, chain menu, and main menu mapping', async () => 
   assert.equal(arcBtn.text, 'Arc Network');
 });
 
-test('ARC Chain: wallet balance queries formatted with 6-decimal USDC precision', async () => {
+test('ARC Chain: wallet balance queries formatted with standard EVM 18-decimal USDC precision', async () => {
   const { ChainBalanceService } = await import('../dist/services/chainBalanceService.js');
 
   const testAddress = '0x1111111111111111111111111111111111111111';
-  // 100 USDC in 6 decimals = 100,000,000 base units = 0x5f5e100
-  const hexBalance100USDC = '0x5f5e100';
+  // 100 USDC in standard EVM 18 decimals = 100 * 10^18 base units = 0x56bc75e2d63100000
+  const hexBalance100USDC = '0x56bc75e2d63100000';
 
   const origPost = ChainBalanceService.httpClient.post;
   ChainBalanceService.httpClient.post = async (url, payload) => {
@@ -54,7 +54,7 @@ test('ARC Chain: wallet balance queries formatted with 6-decimal USDC precision'
 
   try {
     const bal = await ChainBalanceService.getNativeBalance('arc', testAddress);
-    assert.equal(bal, 100.0, '100 USDC balance in 6 decimals should parse to 100.0');
+    assert.equal(bal, 100.0, '100 USDC balance in 18 decimals should parse to 100.0');
   } finally {
     ChainBalanceService.httpClient.post = origPost;
   }

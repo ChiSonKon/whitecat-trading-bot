@@ -2253,10 +2253,17 @@ bot.on('message:text', async ctx => {
       }
 
       const tokenAddress = action.data.tokenAddress;
-      const targetChain = action.data.chain || resolveChainForToken(tokenAddress, user.activeChain);
+      const targetChain = (action.data.chain || resolveChainForToken(tokenAddress, user.activeChain)).toLowerCase();
       const chainSymbol = MainMenu.getChainNativeSymbol(targetChain);
-      const targetWallets = getUserWallets(user, targetChain);
-      const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
+      let targetWallets = getUserWallets(user, targetChain);
+      let targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
+
+      // 实时预检链上余额：若缓存缺失或余额小于买入量，主动触发一次链上余额同步
+      if (!targetWallet || (targetWallet.balance || 0) < amt) {
+        await syncWalletBalances(user, targetChain);
+        targetWallets = getUserWallets(user, targetChain);
+        targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
+      }
 
       if (!targetWallet || (targetWallet.balance || 0) < amt) {
         user.pendingAction = undefined;

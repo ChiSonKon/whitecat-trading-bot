@@ -176,13 +176,13 @@ export class ChainBalanceService {
   }
 
   /**
-   * 查询 EVM 链原生代币余额 (单位: ETH/BNB/OKB/SEI 为 18 decimals; ARC USDC 为 6 decimals)
+   * 查询 EVM 链原生代币余额 (EVM 标准单位均为 18 decimals wei，包括 Arc Network 原生 USDC)
    */
   private static async getEvmBalance(chain: string, address: string): Promise<number | null> {
     const rpcMap: Record<string, string[]> = {
       bsc: ['https://bsc-dataseed.binance.org', 'https://binance.llamarpc.com', 'https://bsc-dataseed1.defibit.io'],
       robinhood: ['https://rpc.mainnet.chain.robinhood.com'],
-      arc: ['https://rpc.arc-scan.org', 'https://niorfun.com/api/rpc'],
+      arc: ['https://niorfun.com/api/rpc', 'https://rpc.arc-scan.org'],
       base: ['https://mainnet.base.org', 'https://base.llamarpc.com', 'https://1rpc.io/base'],
       ethereum: ['https://eth.llamarpc.com', 'https://cloudflare-eth.com', 'https://1rpc.io/eth'],
       xlayer: ['https://rpc.xlayer.tech'],
@@ -197,15 +197,14 @@ export class ChainBalanceService {
       params: [address, 'latest']
     };
 
-    const decimals = chain.toLowerCase() === 'arc' ? 6 : 18;
-    const divisor = 10 ** decimals;
-
     const execute = async (rpcUrl: string): Promise<number> => {
-      const resp = await this.httpClient.post(rpcUrl, payload, { timeout: 2500 });
+      const resp = await this.httpClient.post(rpcUrl, payload, { timeout: 4000 });
       const hex = resp.data?.result;
       if (typeof hex === 'string') {
         const wei = BigInt(hex);
-        return Number(wei) / divisor;
+        const intPart = wei / 1000000000000000000n;
+        const fracPart = wei % 1000000000000000000n;
+        return Number(intPart) + Number(fracPart) / 1e18;
       }
       throw new Error('Invalid eth_getBalance response');
     };

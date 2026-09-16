@@ -84,11 +84,11 @@ const EVM_SPECS: Record<string, EvmChainSpec> = {
   arc: {
     chainId: 5042,
     symbol: 'USDC',
-    rpcUrls: ['https://rpc.arc-scan.org', 'https://niorfun.com/api/rpc'],
+    rpcUrls: ['https://niorfun.com/api/rpc', 'https://rpc.arc-scan.org'],
     routerAddress: process.env.ARC_ROUTER_ADDRESS || '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
     wrappedNative: process.env.ARC_WRAPPED_NATIVE || '0x4200000000000000000000000000000000000006',
     factoryAddress: process.env.ARC_FACTORY_ADDRESS || '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
-    nativeDecimals: 6
+    nativeDecimals: 18
   },
   ethereum: {
     chainId: 1,

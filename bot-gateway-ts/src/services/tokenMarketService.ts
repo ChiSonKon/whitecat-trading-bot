@@ -137,8 +137,8 @@ export class TokenMarketService {
       const rpcUrlsMap: Record<string, string[]> = {
         robinhood: [process.env.ROBINHOOD_RPC || 'https://rpc.mainnet.chain.robinhood.com'],
         arc: [
-          process.env.ARC_RPC || 'https://rpc.arc-scan.org',
-          'http://niorfun.com/api/rpc'
+          process.env.ARC_RPC || 'https://niorfun.com/api/rpc',
+          'https://rpc.arc-scan.org'
         ],
         bsc: [
           process.env.BSC_RPC || 'https://bsc-dataseed.binance.org',

@@ -83,17 +83,17 @@ async function runE2ETests() {
   }
 
   // ---------------------------------------------------------------------------
-  // 测试 2: ARC 钱包余额查询与 6 位小数 USDC 精度解析
+  // 测试 2: ARC 钱包余额查询与 18 位小数 USDC 精度解析 (EVM 标准)
   // ---------------------------------------------------------------------------
-  console.log('\n📌 [Test 2] 校验 ARC 钱包余额查询 (6 位小数 USDC 原生精度)...');
+  console.log('\n📌 [Test 2] 校验 ARC 钱包余额查询 (18 位小数 USDC EVM 标准精度)...');
   const dummyAddress = '0x1234567890123456789012345678901234567890';
   const origPost = ChainBalanceService.httpClient.post;
   try {
-    // 250.50 USDC = 250,500,000 base units = 0xeee53a0
+    // 250.50 USDC = 250.5 * 10^18 = 250500000000000000000n base units
     ChainBalanceService.httpClient.post = async (url: string, payload: any) => {
       if (url.includes('arc-scan.org') || url.includes('niorfun.com')) {
         assert(payload.method === 'eth_getBalance', 'RPC 方法为 eth_getBalance');
-        return { data: { result: '0x' + (250500000).toString(16) } } as any;
+        return { data: { result: '0x' + (250500000000000000000n).toString(16) } } as any;
       }
       return origPost.call(ChainBalanceService.httpClient, url, payload);
     };
@@ -101,7 +101,8 @@ async function runE2ETests() {
     const balance = await ChainBalanceService.getNativeBalance('arc', dummyAddress);
     assert(balance === 250.5, `250.50 USDC 余额解析结果为 250.5 (实际: ${balance})`);
 
-    // 0 余额场景
+    // 0 余额场景 (先清空短期内存缓存)
+    ChainBalanceService.clearCache();
     ChainBalanceService.httpClient.post = async (url: string, payload: any) => {
       return { data: { result: '0x0' } } as any;
     };
