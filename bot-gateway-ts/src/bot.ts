@@ -19,7 +19,7 @@ import { SettingsMenu, TradeConfig } from './menus/settingsMenu.js';
 import { ReferralMenu } from './menus/referralMenu.js';
 import { LimitOrderMenu, LimitOrderItem } from './menus/limitOrderMenu.js';
 import { TokenDetector } from './handlers/tokenDetector.js';
-import { TokenMarketService } from './services/tokenMarketService.js';
+import { TokenMarketService, PRESET_TOKENS } from './services/tokenMarketService.js';
 import { TradeMenu } from './menus/tradeMenu.js';
 import { BackendClient } from './services/backendClient.js';
 import { OnChainSwapService } from './services/onChainSwapService.js';
@@ -131,6 +131,32 @@ function renderOnboardingChainView(lang: string = 'en') {
   return { text, keyboard };
 }
 
+function renderGroupWelcomeCard(lang: string = 'zh-hans', botUsername?: string) {
+  const isZh = lang === 'zh-hans' || lang === 'zh-hant';
+  const botUser = botUsername || bot.botInfo?.username || 'whitecat_doge_yr3ybv_bot';
+  const text = isZh
+    ? `🐱 <b>白猫打狗机器人 · 群聊原生守护</b>\n\n` +
+      `🛡️ <b>隐私与资产隔离已生效</b>\n` +
+      `为保障您的钱包私钥、账户余额与交易隐私，私密控制台与钱包管理面板仅限私聊交互。\n\n` +
+      `💡 <i>在群内发送任意公链代币合约 (CA) 或行情链接，白猫将自动为您呈现代币科技雷达简报与一键私聊秒买通道！</i>`
+    : `🐱 <b>WhiteCat Trading Bot · Group Shield</b>\n\n` +
+      `🛡️ <b>Privacy & Asset Isolation Active</b>\n` +
+      `To protect your private keys, balance, and trading privacy, wallet and asset management are restricted to private chat.\n\n` +
+      `💡 <i>Send any token contract address (CA) or chart link in this group to trigger the Token Tech Radar brief with one-click private trading!</i>`;
+
+  const keyboard = new InlineKeyboard()
+    .url(
+      isZh ? '🚀 前往私聊控制台 (DM Bot)' : '🚀 Open in Private Chat',
+      `https://t.me/${botUser}?start=menu`
+    )
+    .url(
+      isZh ? '🌐 官方生态频道' : '🌐 Official Channel',
+      'https://t.me/biqrxnxiYW/667'
+    );
+
+  return { text, keyboard };
+}
+
 // 1. /start 指令 (新用户弹出语言与链选择，老用户直达主菜单)
 bot.command(['start', 'setup', 'menu'], async ctx => {
   if (!ctx.from?.id) return;
@@ -139,12 +165,22 @@ bot.command(['start', 'setup', 'menu'], async ctx => {
   const user = getOrCreateUser(userId, username);
   console.log(`[Start] Received /start from user ${userId} (@${username}), onboarded: ${user.onboarded}`);
 
-  // Parse referral deep link: /start ref_{inviterId} or /start referTrade_{...}
+  // 群聊内触发 /start, /setup, /menu 时，回复轻量群聊安全卡，阻断敏感控制台弹出
+  const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+  if (isGroup) {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, {
+      reply_markup: keyboard,
+      parse_mode: 'HTML'
+    });
+  }
+
+  // Parse referral deep link: /start ref_{inviterId} or /start referTrade_{...} or /start trade_{...}
   const startPayload = ctx.match?.trim() || '';
 
-  // 1. 代币推荐交易深度链接 (referTrade / refTrade)
-  if (startPayload.startsWith('referTrade_') || startPayload.startsWith('refTrade_')) {
-    const rawPayload = startPayload.replace(/^(referTrade_|refTrade_)/, '');
+  // 1. 代币推荐交易深度链接 (referTrade / refTrade / trade)
+  if (startPayload.startsWith('referTrade_') || startPayload.startsWith('refTrade_') || startPayload.startsWith('trade_')) {
+    const rawPayload = startPayload.replace(/^(referTrade_|refTrade_|trade_)/, '');
     let tokenKey = '';
     let inviterId: number | null = null;
     let chainIdOrName: string | number = user.activeChain;
@@ -219,8 +255,12 @@ bot.command(['start', 'setup', 'menu'], async ctx => {
 
     // 同步钱包余额与代币真实持仓并展示该代币交易面板
     await syncWalletBalances(user, targetChain);
+    let currentWallets = getUserWallets(user, targetChain);
+    if (currentWallets.length === 0) {
+      await createWalletForUser(user, targetChain);
+      currentWallets = getUserWallets(user, targetChain);
+    }
     await syncTokenHoldings(user, targetChain, resolvedTokenAddress);
-    const currentWallets = getUserWallets(user, targetChain);
     const holdingObj = user.tokenHoldings.get(resolvedTokenAddress.toLowerCase());
     const userHolding = holdingObj ? holdingObj.amount : 0;
     const userHoldingNative = holdingObj ? holdingObj.costNative : 0;
@@ -395,6 +435,10 @@ bot.command('switch_chain', async ctx => {
 bot.command('asset', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   await syncWalletBalances(user, user.activeChain);
   await syncTokenHoldings(user, user.activeChain);
   const holdings: TokenHoldingItem[] = [];
@@ -427,6 +471,10 @@ bot.command('asset', async ctx => {
 bot.command('buy_sell', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   user.pendingAction = { type: 'query_ca' };
   return ctx.reply(
     `<b>💰 ${I18nService.getCommandDesc('buy_sell', user.lang)}</b>\n\n` +
@@ -439,6 +487,10 @@ bot.command('buy_sell', async ctx => {
 bot.command('limit_order', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
   return ctx.reply(LimitOrderMenu.renderText(activeWallet, user.limitOrders, user.lang, user.activeChain), {
     reply_markup: LimitOrderMenu.renderKeyboard(user.lang),
@@ -450,6 +502,10 @@ bot.command('limit_order', async ctx => {
 bot.command('copy_trade', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
   return ctx.reply(CopyTradeMenu.renderText(activeWallet, user.monitoredWallets.length, user.lang), {
     reply_markup: CopyTradeMenu.renderKeyboard(user.lang),
@@ -461,6 +517,10 @@ bot.command('copy_trade', async ctx => {
 bot.command('sniper', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   return ctx.reply(SnipeMenu.renderText(user.lang), {
     reply_markup: SnipeMenu.renderKeyboard(user.lang),
     parse_mode: 'HTML'
@@ -471,6 +531,10 @@ bot.command('sniper', async ctx => {
 bot.command('billing', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
   return ctx.reply(BillingMenu.renderText(user.activeChain, activeWallet, user.transactions, user.lang), {
     reply_markup: BillingMenu.renderKeyboard(user.activeChain, activeWallet, user.lang),
@@ -482,6 +546,10 @@ bot.command('billing', async ctx => {
 bot.command('wallet_setting', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   await syncWalletBalances(user, user.activeChain);
   const wallets = getUserWallets(user, user.activeChain);
   return ctx.reply(WalletMenu.renderText(user.activeChain, wallets, user.lang), {
@@ -494,6 +562,10 @@ bot.command('wallet_setting', async ctx => {
 bot.command('trade_setting', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   return ctx.reply(SettingsMenu.renderText(user.activeChain, user.tradeConfig, user.lang), {
     reply_markup: SettingsMenu.renderKeyboard(user.activeChain, user.tradeConfig, user.lang),
     parse_mode: 'HTML'
@@ -504,6 +576,10 @@ bot.command('trade_setting', async ctx => {
 bot.command('referral', async ctx => {
   if (!ctx.from?.id) return;
   const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup') {
+    const { text, keyboard } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+    return ctx.reply(text, { reply_markup: keyboard, parse_mode: 'HTML' });
+  }
   return ctx.reply(ReferralMenu.renderText(user.userId, user.activeChain, user, user.lang), {
     reply_markup: ReferralMenu.renderKeyboard(user.lang),
     parse_mode: 'HTML'
@@ -614,6 +690,71 @@ bot.on('callback_query:data', async ctx => {
   const wallets = getUserWallets(user);
   const activeWallet = wallets.find(w => w.isDefault) || wallets[0];
     const nativeSymbol = MainMenu.getChainNativeSymbol(user.activeChain);
+
+  // 0.0 群聊专属：数据刷新 (gr_<tokenKey>_<chainId>)
+  if (data.startsWith('gr_')) {
+    const rawPayload = data.replace('gr_', '');
+    const parts = rawPayload.split('_');
+    let tokenKey = '';
+    let chainIdOrName: string | number = 'bsc';
+
+    if (parts.length >= 3 && parts[0] === 'tk') {
+      tokenKey = `tk_${parts[1]}`;
+      chainIdOrName = parts[2];
+    } else {
+      tokenKey = parts[0];
+      if (parts.length >= 2) chainIdOrName = parts[1];
+    }
+
+    const targetChain = TradeMenu.resolveChainFromIdOrName(chainIdOrName);
+    const resolvedAddress = TokenKeyHelper.toAddress(tokenKey);
+
+    try {
+      TokenMarketService.invalidateCache(resolvedAddress, targetChain);
+      const market = await TokenMarketService.fetchTokenDetails(resolvedAddress, targetChain);
+      const botUsername = bot.botInfo?.username || 'whitecat_doge_yr3ybv_bot';
+      const cardText = TradeMenu.renderGroupCardText({
+        market,
+        chain: targetChain,
+        lang: user.lang
+      });
+      const cardKeyboard = TradeMenu.renderGroupCardKeyboard({
+        chain: targetChain,
+        tokenAddress: market.address,
+        botUsername,
+        lang: user.lang,
+        market
+      });
+
+      try {
+        await ctx.editMessageText(cardText, {
+          reply_markup: cardKeyboard,
+          parse_mode: 'HTML',
+          link_preview_options: { is_disabled: true }
+        });
+      } catch {}
+
+      return ctx.answerCallbackQuery({ text: isZh ? '✅ 数据已更新至最新' : '✅ Data refreshed' });
+    } catch (e: any) {
+      return ctx.answerCallbackQuery({ text: isZh ? '⚠️ 刷新失败，请稍后再试' : '⚠️ Refresh failed, please retry' });
+    }
+  }
+
+  // 群聊安全拦截：非群聊原生功能的回调，禁止在群组中执行或编辑消息 (防隐私泄漏)
+  if (ctx.chat?.type && ctx.chat.type !== 'private') {
+    if (data === 'menu_mcp' || data.startsWith('mcp_')) {
+      return ctx.answerCallbackQuery({
+        text: I18nService.t('mcp.privateOnlyAlert', user.lang),
+        show_alert: true
+      });
+    }
+    return ctx.answerCallbackQuery({
+      text: isZh
+        ? '🛡️ 此操作包含私密数据，请在与机器人的私聊中使用。'
+        : '🛡️ This action contains private data, please use it in private chat.',
+      show_alert: true
+    });
+  }
 
   // 0.1 新用户向导：语言选择 (支持 onboard_lang_ 与 init_lang_)
   if (data.startsWith('onboard_lang_') || data.startsWith('init_lang_')) {
@@ -2231,14 +2372,14 @@ bot.on('callback_query:data', async ctx => {
 
 // 4. 消息监听: 处理用户输入 (Pending Actions) 及 代币合约 (CA)
 bot.on('message:text', async ctx => {
-  
   const text = ctx.message.text.trim();
   const userId = ctx.from.id;
   const user = getOrCreateUser(userId, ctx.from.username);
   const isZh = user.lang === 'zh-hans' || user.lang === 'zh-hant';
   const wallets = getUserWallets(user);
   const activeWallet = wallets.find(w => w.isDefault) || wallets[0];
-    const nativeSymbol = MainMenu.getChainNativeSymbol(user.activeChain);
+  const nativeSymbol = MainMenu.getChainNativeSymbol(user.activeChain);
+  const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
 
   // 0. 支持用户随时发送 /cancel 或 取消 中断当前等待输入的流程
   if (text === '/cancel' || text === '取消' || text.toLowerCase() === 'cancel') {
@@ -2249,53 +2390,123 @@ bot.on('message:text', async ctx => {
   }
 
   // 0.1 优先捕获底部常驻快捷按钮 (🚀 打开主菜单 | 📊 资产持仓 | 💳 钱包设置)
-  if (I18nService.isMainMenuTrigger(text)) {
-    user.pendingAction = undefined;
-    await syncWalletBalances(user, user.activeChain);
-    const wallets = getUserWallets(user);
-    return ctx.reply(MainMenu.renderText(user.activeChain, wallets, user.lang), {
-      reply_markup: MainMenu.renderKeyboard(wallets, user.lang),
-      parse_mode: 'HTML'
-    });
-  }
-
-  if (I18nService.isAssetTrigger(text)) {
-    user.pendingAction = undefined;
-    await syncWalletBalances(user, user.activeChain);
-    const holdings: TokenHoldingItem[] = [];
-    user.tokenHoldings.forEach((holding) => {
-      if (holding && holding.amount > 1e-4) {
-        const isCurrentChain = !holding.chain || holding.chain.toLowerCase() === user.activeChain.toLowerCase();
-        if (isCurrentChain) {
-          const nativeVal = holding.costNative || 0.1;
-          holdings.push({
-            address: holding.tokenAddress,
-            symbol: holding.symbol || 'TOKEN',
-            balance: holding.amount,
-            nativeValue: nativeVal,
-            pnlNative: 0,
-            pnlPct: 0
-          });
-        }
-      }
-    });
-    const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
-    if (!activeWallet) {
-      return ctx.reply(I18nService.t('msg.noWallet', user.lang));
+  if (I18nService.isMainMenuTrigger(text) || I18nService.isAssetTrigger(text) || I18nService.isWalletTrigger(text)) {
+    if (isGroup) {
+      const { text: gText, keyboard: gKb } = renderGroupWelcomeCard(user.lang, bot.botInfo?.username);
+      return ctx.reply(gText, {
+        reply_markup: gKb,
+        parse_mode: 'HTML'
+      });
     }
-    return ctx.reply(AssetMenu.renderText(user.activeChain, activeWallet, holdings, user.lang), {
-      reply_markup: AssetMenu.renderKeyboard(user.activeChain, holdings, user.lang),
-      parse_mode: 'HTML'
-    });
+
+    if (I18nService.isMainMenuTrigger(text)) {
+      user.pendingAction = undefined;
+      await syncWalletBalances(user, user.activeChain);
+      const wallets = getUserWallets(user);
+      return ctx.reply(MainMenu.renderText(user.activeChain, wallets, user.lang), {
+        reply_markup: MainMenu.renderKeyboard(wallets, user.lang),
+        parse_mode: 'HTML'
+      });
+    }
+
+    if (I18nService.isAssetTrigger(text)) {
+      user.pendingAction = undefined;
+      await syncWalletBalances(user, user.activeChain);
+      const holdings: TokenHoldingItem[] = [];
+      user.tokenHoldings.forEach((holding) => {
+        if (holding && holding.amount > 1e-4) {
+          const isCurrentChain = !holding.chain || holding.chain.toLowerCase() === user.activeChain.toLowerCase();
+          if (isCurrentChain) {
+            const nativeVal = holding.costNative || 0.1;
+            holdings.push({
+              address: holding.tokenAddress,
+              symbol: holding.symbol || 'TOKEN',
+              balance: holding.amount,
+              nativeValue: nativeVal,
+              pnlNative: 0,
+              pnlPct: 0
+            });
+          }
+        }
+      });
+      const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
+      if (!activeWallet) {
+        return ctx.reply(I18nService.t('msg.noWallet', user.lang));
+      }
+      return ctx.reply(AssetMenu.renderText(user.activeChain, activeWallet, holdings, user.lang), {
+        reply_markup: AssetMenu.renderKeyboard(user.activeChain, holdings, user.lang),
+        parse_mode: 'HTML'
+      });
+    }
+
+    if (I18nService.isWalletTrigger(text)) {
+      user.pendingAction = undefined;
+      await syncWalletBalances(user, user.activeChain);
+      const wallets = getUserWallets(user, user.activeChain);
+      return ctx.reply(WalletMenu.renderText(user.activeChain, wallets, user.lang), {
+        reply_markup: WalletMenu.renderKeyboard(wallets, user.lang),
+        parse_mode: 'HTML'
+      });
+    }
   }
 
-  if (I18nService.isWalletTrigger(text)) {
-    user.pendingAction = undefined;
-    await syncWalletBalances(user, user.activeChain);
-    const wallets = getUserWallets(user, user.activeChain);
-    return ctx.reply(WalletMenu.renderText(user.activeChain, wallets, user.lang), {
-      reply_markup: WalletMenu.renderKeyboard(wallets, user.lang),
-      parse_mode: 'HTML'
+  // 0.2 群聊场景专属核心逻辑：全公链智能 CA 嗅探与静默防刷屏机制
+  if (isGroup) {
+    const detection = TokenDetector.sniffTokenContract(text);
+    if (!detection.isContract) {
+      // 普通非 CA 聊天消息在群聊中完全静默忽略，绝对禁止回复“请发送代币合约”等引导文本，防止群内刷屏
+      return;
+    }
+
+    const rawTarget = detection.address;
+    let targetChain = detection.chainHint;
+
+    // 1. 优先比对已知/官方预置代币注册表 (Arcat, SharcFun 等)
+    const preset = PRESET_TOKENS[rawTarget.toLowerCase()];
+    if (preset) {
+      targetChain = preset.chain;
+    }
+
+    // 2. 若未确定公链，根据 detection.type 判定默认候选链
+    if (!targetChain) {
+      if (detection.type === 'solana') targetChain = 'solana';
+      else if (detection.type === 'sui') targetChain = 'sui';
+      else if (detection.type === 'ton') targetChain = 'ton';
+      else if (detection.type === 'evm') {
+        targetChain = TokenDetector.isEvmChain(user.activeChain) ? user.activeChain.toLowerCase() : 'arc';
+      } else {
+        targetChain = user.activeChain.toLowerCase();
+      }
+    }
+
+    // 3. 提取市场行情与风险指标
+    let market = await TokenMarketService.fetchTokenDetails(rawTarget, targetChain);
+
+    // 4. 跨链归属智能矫正 (若当前链未检测到流动池但在其他链有交易对)
+    if (market.foundOnCurrentChain === false && market.actualChainId && market.actualChainId !== targetChain.toLowerCase()) {
+      targetChain = market.actualChainId;
+      market = await TokenMarketService.fetchTokenDetails(rawTarget, targetChain);
+    }
+
+    // 5. 渲染群聊专属高颜值【代币科技雷达简报卡】与原生 DeepLink 按钮 (零用户资产隐私泄漏)
+    const botUsername = bot.botInfo?.username || 'whitecat_doge_yr3ybv_bot';
+    const cardText = TradeMenu.renderGroupCardText({
+      market,
+      chain: targetChain,
+      lang: user.lang
+    });
+    const cardKeyboard = TradeMenu.renderGroupCardKeyboard({
+      chain: targetChain,
+      tokenAddress: market.address,
+      botUsername,
+      lang: user.lang,
+      market
+    });
+
+    return ctx.reply(cardText, {
+      reply_markup: cardKeyboard,
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
     });
   }
 

@@ -20,45 +20,183 @@ export function getChainAccountUrl(chain: string, address: string): string {
   return `https://bscscan.com/address/${address}`;
 }
 
+import bs58 from 'bs58';
+
+export interface TokenDetectionResult {
+  isContract: boolean;
+  type: 'evm' | 'solana' | 'sui' | 'aptos' | 'ton' | null;
+  address: string;
+  chainHint?: string;
+}
+
 export class TokenDetector {
-  public static isTokenContract(text: string): {
-    isContract: boolean;
-    type: 'evm' | 'solana' | 'sui' | 'aptos' | 'ton' | null;
-    address: string;
-  } {
+  /**
+   * 智能嗅探消息文本中的代币合约地址 (CA)
+   * 支持任意位置提取 (纯地址、推特链接、DexScreener 链接、Pump.fun 链接、喊单文案等)
+   */
+  public static sniffTokenContract(text: string): TokenDetectionResult {
+    if (!text || typeof text !== 'string') {
+      return { isContract: false, type: null, address: '' };
+    }
+
     const trimmed = text.trim();
 
-    // 1. 优先匹配 Sui Move Token 结构体 (如 0x9f854...::magma::MAGMA 或 0x2::sui::SUI 或带泛型)
-    const moveStructMatch = trimmed.match(/^(0x[a-fA-F0-9]{1,66})::([a-zA-Z0-9_]+)(::[a-zA-Z0-9_<>:, ]+)?$/i);
-    if (moveStructMatch) {
-      return { isContract: true, type: 'sui', address: moveStructMatch[0] };
+    // 1. 优先整行完全匹配
+    // 1.1 Sui Move Token 结构体 (如 0x9f854...::magma::MAGMA 或 0x2::sui::SUI 或带泛型)
+    const moveStructExact = trimmed.match(/^(0x[a-fA-F0-9]{1,66})::([a-zA-Z0-9_]+)(::[a-zA-Z0-9_<>:, ]+)?$/i);
+    if (moveStructExact) {
+      return { isContract: true, type: 'sui', address: moveStructExact[0], chainHint: 'sui' };
     }
 
-    // 2. 匹配 EVM 合约 (0x 开头 + 40位十六进制)
-    const evmMatch = trimmed.match(/^0x[a-fA-F0-9]{40}$/);
-    if (evmMatch) {
-      return { isContract: true, type: 'evm', address: evmMatch[0] };
+    // 1.2 EVM 合约 (0x 开头 + 40位十六进制)
+    const evmExact = trimmed.match(/^0x[a-fA-F0-9]{40}$/i);
+    if (evmExact) {
+      return { isContract: true, type: 'evm', address: evmExact[0] };
     }
 
-    // 3. 匹配 Sui / Aptos 32 字节原生地址 (0x 开头 + 64位十六进制)
-    const moveMatch = trimmed.match(/^0x[a-fA-F0-9]{64}$/i);
-    if (moveMatch) {
-      return { isContract: true, type: 'sui', address: moveMatch[0] };
+    // 1.3 Sui / Aptos 32 字节原生地址 (0x 开头 + 64位十六进制)
+    const moveExact = trimmed.match(/^0x[a-fA-F0-9]{64}$/i);
+    if (moveExact) {
+      return { isContract: true, type: 'sui', address: moveExact[0], chainHint: 'sui' };
     }
 
-    // 4. 匹配 TON User-Friendly 地址 (EQ, UQ, kQ, 0Q, Ef 开头 + 46位 Base64) 或原始地址 0: / -1:
-    const tonMatch = trimmed.match(/^(EQ|UQ|kQ|0Q|Ef)[a-zA-Z0-9_-]{46}$/) || trimmed.match(/^(-1|0):[a-fA-F0-9]{64}$/);
-    if (tonMatch) {
-      return { isContract: true, type: 'ton', address: tonMatch[0] };
+    // 1.4 TON User-Friendly 地址 (EQ, UQ, kQ, 0Q, Ef 开头 + 46位 Base64) 或原始地址 0: / -1:
+    const tonExact = trimmed.match(/^(EQ|UQ|kQ|0Q|Ef)[a-zA-Z0-9_-]{46}$/) || trimmed.match(/^(-1|0):[a-fA-F0-9]{64}$/);
+    if (tonExact) {
+      return { isContract: true, type: 'ton', address: tonExact[0], chainHint: 'ton' };
     }
 
-    // 5. 匹配 Solana Base58 Mint (32~44 字符 Base58)
-    const solanaMatch = trimmed.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
-    if (solanaMatch && !trimmed.startsWith('0x') && !trimmed.startsWith('/') && trimmed.length >= 32) {
-      return { isContract: true, type: 'solana', address: solanaMatch[0] };
+    // 1.5 Solana Base58 Mint (32~44 字符 Base58，且通过 32-byte Ed25519 校验)
+    const solanaExact = trimmed.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+    if (solanaExact && !trimmed.startsWith('0x') && !trimmed.startsWith('/')) {
+      try {
+        const decoded = bs58.decode(trimmed);
+        if (decoded.length === 32) {
+          return { isContract: true, type: 'solana', address: solanaExact[0], chainHint: 'solana' };
+        }
+      } catch {}
+    }
+
+    // 2. 检查消息内是否嵌入了主流行情/分析平台链接，直接精准提取链与合约
+    // 2.1 DexScreener 链接: dexscreener.com/<chain>/<address>
+    const dexScreenerMatch = text.match(/dexscreener\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_:.]{32,128})/i);
+    if (dexScreenerMatch) {
+      const rawChain = dexScreenerMatch[1].toLowerCase();
+      const rawAddr = dexScreenerMatch[2];
+      const subDetection = this.sniffTokenContract(rawAddr);
+      if (subDetection.isContract) {
+        return {
+          ...subDetection,
+          chainHint: this.normalizeChainSlug(rawChain) || subDetection.chainHint
+        };
+      }
+    }
+
+    // 2.2 Pump.fun 链接: pump.fun/coin/<address>
+    const pumpMatch = text.match(/pump\.fun\/(?:coin\/)?([1-9A-HJ-NP-Za-km-z]{32,44})/i);
+    if (pumpMatch) {
+      const candidate = pumpMatch[1];
+      try {
+        if (bs58.decode(candidate).length === 32) {
+          return { isContract: true, type: 'solana', address: candidate, chainHint: 'solana' };
+        }
+      } catch {}
+    }
+
+    // 2.3 各大公链原生区块浏览器链接直达提取
+    const explorerUrlMatches: { regex: RegExp; chain: string; type: 'evm' | 'solana' | 'sui' | 'ton' }[] = [
+      { regex: /arc-scan\.org\/(?:token|address)\/(0x[a-fA-F0-9]{40})/i, chain: 'arc', type: 'evm' },
+      { regex: /bscscan\.com\/(?:token|address)\/(0x[a-fA-F0-9]{40})/i, chain: 'bsc', type: 'evm' },
+      { regex: /basescan\.org\/(?:token|address)\/(0x[a-fA-F0-9]{40})/i, chain: 'base', type: 'evm' },
+      { regex: /etherscan\.io\/(?:token|address)\/(0x[a-fA-F0-9]{40})/i, chain: 'ethereum', type: 'evm' },
+      { regex: /solscan\.io\/(?:token|account)\/([1-9A-HJ-NP-Za-km-z]{32,44})/i, chain: 'solana', type: 'solana' },
+      { regex: /suiscan\.xyz\/(?:mainnet|testnet)\/(?:coin|account)\/([0-9a-zA-Z_:<>, ]+)/i, chain: 'sui', type: 'sui' },
+      { regex: /tonviewer\.com\/([a-zA-Z0-9_-]{48})/i, chain: 'ton', type: 'ton' }
+    ];
+
+    for (const exp of explorerUrlMatches) {
+      const m = text.match(exp.regex);
+      if (m && m[1]) {
+        return { isContract: true, type: exp.type, address: m[1], chainHint: exp.chain };
+      }
+    }
+
+    // 3. 上下文公链提示词推断 (Chain Hint)
+    let contextChainHint: string | undefined = undefined;
+    const lowerText = text.toLowerCase();
+    if (/(?:^|\W)(arc|sharc|arcat|dyor)(?:\W|$)/i.test(lowerText)) contextChainHint = 'arc';
+    else if (/(?:^|\W)(bsc|bnb|binance|pancake)(?:\W|$)/i.test(lowerText)) contextChainHint = 'bsc';
+    else if (/(?:^|\W)(base|coinbase)(?:\W|$)/i.test(lowerText)) contextChainHint = 'base';
+    else if (/(?:^|\W)(sol|solana|pump|raydium)(?:\W|$)/i.test(lowerText)) contextChainHint = 'solana';
+    else if (/(?:^|\W)(sui|suiscan|bluefin)(?:\W|$)/i.test(lowerText)) contextChainHint = 'sui';
+    else if (/(?:^|\W)(ton|tonviewer|dedust)(?:\W|$)/i.test(lowerText)) contextChainHint = 'ton';
+    else if (/(?:^|\W)(eth|ethereum|uniswap)(?:\W|$)/i.test(lowerText)) contextChainHint = 'ethereum';
+    else if (/(?:^|\W)(sei|seitrace)(?:\W|$)/i.test(lowerText)) contextChainHint = 'sei';
+    else if (/(?:^|\W)(xlayer|okx)(?:\W|$)/i.test(lowerText)) contextChainHint = 'xlayer';
+    else if (/(?:^|\W)(robinhood)(?:\W|$)/i.test(lowerText)) contextChainHint = 'robinhood';
+
+    // 4. 任意位置智能正则嗅探提取 (无边界字符穿透)
+    // 4.1 优先探测 Sui Move 结构体: 如 0x...::...
+    const embeddedMove = text.match(/(?:^|[^a-zA-Z0-9_])(0x[a-fA-F0-9]{1,66}::[a-zA-Z0-9_]+(?:::[a-zA-Z0-9_<>:, ]+)?)(?![a-zA-Z0-9_])/i);
+    if (embeddedMove && embeddedMove[1]) {
+      return { isContract: true, type: 'sui', address: embeddedMove[1].trim(), chainHint: contextChainHint || 'sui' };
+    }
+
+    // 4.2 探测 TON Friendly 地址 (48 字符)
+    const embeddedTon = text.match(/(?:^|[^a-zA-Z0-9_-])((?:EQ|UQ|kQ|0Q|Ef)[a-zA-Z0-9_-]{46})(?![a-zA-Z0-9_-])/);
+    if (embeddedTon && embeddedTon[1]) {
+      return { isContract: true, type: 'ton', address: embeddedTon[1], chainHint: 'ton' };
+    }
+
+    // 4.3 探测 EVM 42 字符合约 (0x + 40 位 hex，后置紧随断言排除 64-hex Sui 原生或 TxHash)
+    const embeddedEvm = text.match(/(?:^|[^a-zA-Z0-9])(0x[a-fA-F0-9]{40})(?![a-fA-F0-9])/i);
+    if (embeddedEvm && embeddedEvm[1]) {
+      return { isContract: true, type: 'evm', address: embeddedEvm[1], chainHint: contextChainHint };
+    }
+
+    // 4.4 探测 Sui 66 字符原生地址 (0x + 64 位 hex)
+    const embeddedSuiHex = text.match(/(?:^|[^a-zA-Z0-9])(0x[a-fA-F0-9]{64})(?![a-fA-F0-9])/i);
+    if (embeddedSuiHex && embeddedSuiHex[1]) {
+      return { isContract: true, type: 'sui', address: embeddedSuiHex[1], chainHint: contextChainHint || 'sui' };
+    }
+
+    // 4.5 探测 Solana Base58 地址 (32~44 字符 Base58，排除 0x 开头，并通过 32 字节 Ed25519 校验)
+    const solanaCandidates = text.match(/(?:^|[^a-zA-Z0-9])([1-9A-HJ-NP-Za-km-z]{32,44})(?![a-zA-Z0-9])/g);
+    if (solanaCandidates) {
+      for (const item of solanaCandidates) {
+        const cleanCandidate = item.replace(/^[^a-zA-Z0-9]+/, '').replace(/[^a-zA-Z0-9]+$/, '');
+        if (cleanCandidate.length >= 32 && cleanCandidate.length <= 44 && !cleanCandidate.startsWith('0x')) {
+          try {
+            const decoded = bs58.decode(cleanCandidate);
+            if (decoded.length === 32) {
+              return { isContract: true, type: 'solana', address: cleanCandidate, chainHint: 'solana' };
+            }
+          } catch {}
+        }
+      }
     }
 
     return { isContract: false, type: null, address: '' };
+  }
+
+  public static isTokenContract(text: string): TokenDetectionResult {
+    return this.sniffTokenContract(text);
+  }
+
+  public static normalizeChainSlug(slug: string): string | undefined {
+    const s = slug.toLowerCase();
+    if (s === 'solana' || s === 'sol') return 'solana';
+    if (s === 'bsc' || s === 'bnb' || s === 'binance') return 'bsc';
+    if (s === 'base') return 'base';
+    if (s === 'ethereum' || s === 'eth') return 'ethereum';
+    if (s === 'arc') return 'arc';
+    if (s === 'sui') return 'sui';
+    if (s === 'ton') return 'ton';
+    if (s === 'sei') return 'sei';
+    if (s === 'xlayer') return 'xlayer';
+    if (s === 'robinhood') return 'robinhood';
+    if (s === 'aptos') return 'aptos';
+    return undefined;
   }
 
   public static isEvmChain(chain: string): boolean {

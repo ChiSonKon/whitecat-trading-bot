@@ -297,4 +297,124 @@ export class TradeMenu {
       ]
     ]);
   }
+
+  /**
+   * 群聊专属高颜值【代币科技雷达简报卡】文本渲染 (严格隐去所有用户钱包、余额与持仓隐私)
+   */
+  public static renderGroupCardText(params: {
+    market: TokenMarketData;
+    chain: string;
+    lang?: string;
+  }): string {
+    const { market, chain, lang = 'zh-hans' } = params;
+    const isZh = lang === 'zh-hans' || lang === 'zh-hant';
+    const chainName = MainMenu.getChainDisplayName(chain);
+    const nativeSymbol = MainMenu.getChainNativeSymbol(chain);
+    const mcStr = this.formatMarketCap(market.marketCapUsd);
+    const liqStr = this.formatLiq(market.liquidityNative);
+
+    const escapedName = this.escapeHtml(market.name);
+    const escapedSymbol = this.escapeHtml(market.symbol || 'TOKEN');
+    const escapedAddress = this.escapeHtml(market.address);
+    const escapedRisk = this.escapeHtml(market.riskLevel || 'Low Risk');
+
+    const smartDegens = market.smartDegenCount ?? 0;
+    const kolCount = market.kolCount ?? 0;
+    const radarScore = market.radarScore ?? 88;
+    const linkedRate = ((market.linkedHoldRate ?? 0.02) * 100).toFixed(1);
+    const ratBadge = (market.linkedHoldRate ?? 0) > 0.15 ? '🔴 高危' : (market.linkedHoldRate ?? 0) > 0.08 ? '🟡 中等' : '🟢 安全';
+    const devStatus = market.devStatus || 'HOLDING';
+    const kolAlert = market.isKolOnlyTrap ? `\n⚠️ <b>${I18nService.t('radar.kolWarning', lang) || '检测到纯KOL喊单盘，请警惕接盘风险！'}</b>` : '';
+
+    const priceFormatted = market.priceUsd < 0.0001
+      ? market.priceUsd.toExponential(4)
+      : (market.priceUsd < 0.01 ? market.priceUsd.toFixed(6) : market.priceUsd.toFixed(4));
+
+    const tableBlock =
+      `<pre>\n` +
+      `┌─────────────────────────────────┐\n` +
+      `│ 🌐 所属公链: ${chainName.padEnd(16)} │\n` +
+      `│ 💵 实时价格: $${priceFormatted.padEnd(15)} │\n` +
+      `│ 🏦 流通市值: $${mcStr.padEnd(15)} │\n` +
+      `│ 🌊 流动池深: ${(liqStr + ' ' + nativeSymbol).padEnd(16)} │\n` +
+      `│ ⚠️ 安全评级: ${escapedRisk.padEnd(16)} │\n` +
+      `└─────────────────────────────────┘\n` +
+      `</pre>`;
+
+    if (isZh) {
+      return (
+        `📡 <b>代币科技雷达简报 · 白猫打狗</b>\n\n` +
+        `🦄 <b>${escapedName} (${escapedSymbol})</b>\n` +
+        `<code>${escapedAddress}</code>\n\n` +
+        `${tableBlock}\n` +
+        `🎯 聪明钱: <b>${smartDegens}人</b> ｜ KOL喊单: <b>${kolCount}人</b>\n` +
+        `⭐ 雷达综合评分: <b>${radarScore} 分</b> ｜ Dev: <code>${devStatus}</code>\n` +
+        `🧬 老鼠仓集中度: ${ratBadge} (<b>${linkedRate}%</b>)${kolAlert}\n\n` +
+        `💡 <i>群聊已开启隐私保护（不显示个人资产）。点击下方一键跳转私聊开单交易！</i>`
+      );
+    }
+
+    return (
+      `📡 <b>Token Tech Radar Brief · WhiteCat</b>\n\n` +
+      `🦄 <b>${escapedName} (${escapedSymbol})</b>\n` +
+      `<code>${escapedAddress}</code>\n\n` +
+      `${tableBlock}\n` +
+      `🎯 Smart Degens: <b>${smartDegens}</b> ｜ KOLs: <b>${kolCount}</b>\n` +
+      `⭐ Radar Score: <b>${radarScore} pts</b> ｜ Dev: <code>${devStatus}</code>\n` +
+      `🧬 Insider Ratio: ${ratBadge} (<b>${linkedRate}%</b>)${kolAlert}\n\n` +
+      `💡 <i>Privacy protection active (personal balance hidden). Click below to trade in private chat!</i>`
+    );
+  }
+
+  /**
+   * 群聊专属高转化 Inline 键盘渲染 (包含原生私聊一键开单 DeepLink)
+   */
+  public static renderGroupCardKeyboard(params: {
+    chain: string;
+    tokenAddress: string;
+    botUsername: string;
+    lang?: string;
+    market?: TokenMarketData;
+  }): InlineKeyboard {
+    const { chain, tokenAddress, botUsername, lang = 'zh-hans', market } = params;
+    const isZh = lang === 'zh-hans' || lang === 'zh-hant';
+    const chainId = this.getChainId(chain);
+    const tokenKey = TokenKeyHelper.register(tokenAddress);
+    const cLower = chain.toLowerCase();
+
+    // 1. 原生私聊交易深度链接
+    const deepLinkUrl = `https://t.me/${botUsername}?start=trade_${tokenKey}_${chainId}`;
+
+    // 2. K线 / 区块浏览器直达链接
+    let chartUrl = market?.dexscreenerUrl;
+    if (!chartUrl) {
+      if (cLower === 'arc') {
+        chartUrl = market?.dexUrl || `https://arc-scan.org/token/${tokenAddress}`;
+      } else if (cLower === 'solana') {
+        chartUrl = `https://dexscreener.com/solana/${tokenAddress}`;
+      } else if (cLower === 'bsc') {
+        chartUrl = `https://dexscreener.com/bsc/${tokenAddress}`;
+      } else if (cLower === 'base') {
+        chartUrl = `https://dexscreener.com/base/${tokenAddress}`;
+      } else if (cLower === 'ethereum') {
+        chartUrl = `https://dexscreener.com/ethereum/${tokenAddress}`;
+      } else if (cLower === 'sui') {
+        chartUrl = `https://suiscan.xyz/mainnet/coin/${tokenAddress}`;
+      } else if (cLower === 'ton') {
+        chartUrl = `https://tonviewer.com/${tokenAddress}`;
+      } else {
+        chartUrl = `https://bscscan.com/token/${tokenAddress}`;
+      }
+    }
+
+    const tradeBtnText = isZh ? '🚀 立即买入 / 交易 (跳转私聊)' : '🚀 Buy / Trade Now (Open DM)';
+    const chartBtnText = isZh ? '📊 K线 / 区块浏览器直达' : '📊 Chart / Explorer';
+    const refreshBtnText = isZh ? '🔄 刷新数据' : '🔄 Refresh';
+
+    return new InlineKeyboard()
+      .url(tradeBtnText, deepLinkUrl)
+      .row()
+      .url(chartBtnText, chartUrl)
+      .text(refreshBtnText, `gr_${tokenKey}_${chainId}`);
+  }
 }
