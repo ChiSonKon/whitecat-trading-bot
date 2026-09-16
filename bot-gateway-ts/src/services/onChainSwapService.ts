@@ -366,6 +366,54 @@ export class OnChainSwapService {
     return msg || 'EVM 链上模拟执行失败';
   }
 
+  public static async getEffectiveGasPrice(
+    chain: string,
+    priorityFeeTier?: string,
+    gasTip?: number,
+    nativeDecimals: number = 18,
+    estimatedGas: bigint = 0n
+  ): Promise<bigint> {
+    const targetChain = chain.toLowerCase();
+    const gasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
+    let gasPrice = BigInt(gasPriceHex || '0x4a817c800');
+
+    // Fetch latest block to check baseFeePerGas
+    let baseFee = 0n;
+    try {
+      const block = await this.callEvmRpc(targetChain, 'eth_getBlockByNumber', ['latest', false]);
+      if (block && block.baseFeePerGas) {
+        baseFee = BigInt(block.baseFeePerGas);
+      }
+    } catch {}
+
+    // Gas premium based on tier (turbo: +35%, regular: +25%)
+    const premium = priorityFeeTier === 'turbo' ? 135n : 125n;
+    gasPrice = (gasPrice * premium) / 100n;
+
+    // Ensure gasPrice is comfortably above block.baseFeePerGas (+30% above baseFee)
+    if (baseFee > 0n) {
+      const minBaseFeeCover = (baseFee * 130n) / 100n;
+      if (gasPrice < minBaseFeeCover) {
+        gasPrice = minBaseFeeCover;
+      }
+    }
+
+    // Arc network floor: baseFee on Arc can fluctuate between 30-70 Gwei; ensure at least 70 Gwei on Arc
+    if (targetChain === 'arc' && gasPrice < 70_000_000_000n) {
+      gasPrice = 70_000_000_000n;
+    }
+
+    if (gasTip && gasTip > 0 && estimatedGas > 0n) {
+      const tipUnits = nativeBaseUnits(gasTip.toString(), nativeDecimals);
+      const tipPerGas = tipUnits / estimatedGas;
+      if (tipPerGas > 0n) {
+        gasPrice += tipPerGas;
+      }
+    }
+
+    return gasPrice;
+  }
+
   public static async pollEvmReceipt(chain: string, txHash: string, maxWaitMs: number = 25000): Promise<{ status: 'SUCCESS' | 'FAILED' | 'PENDING'; gasUsed?: number }> {
     const pollStart = Date.now();
     const pollInterval = (chain.toLowerCase() === 'arc' || chain.toLowerCase() === 'base') ? 500 : 1000;
@@ -778,22 +826,23 @@ export class OnChainSwapService {
             if (currentAllowance < usdcUnits) {
               console.log(`[OnChainSwap] Insufficient USDC allowance for router ${evmSpec.routerAddress}, sending approve...`);
               const approveTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (approveNonce) => {
-                const approveGasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
+                const approveGasPrice = await this.getEffectiveGasPrice(targetChain, params.priorityFeeTier, params.gasTip, nativeDecimals, 70000n);
                 const approveTx = {
                   to: usdcAddr,
                   value: 0n,
                   data: erc20Iface.encodeFunctionData('approve', [evmSpec.routerAddress, ethers.MaxUint256]),
                   nonce: approveNonce,
                   gasLimit: 70000n,
-                  gasPrice: BigInt(approveGasPriceHex || '0x4a817c800'),
+                  gasPrice: approveGasPrice,
                   chainId: evmSpec.chainId
                 };
                 const signedApprove = await wallet.signTransaction(approveTx);
                 return await this.callEvmRpc(targetChain, 'eth_sendRawTransaction', [signedApprove]);
               });
               console.log(`[OnChainSwap] USDC Approve broadcast: ${approveTxHash}, waiting for confirmation...`);
-              const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 30000);
+              const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 60000);
               if (approveRes.status === 'FAILED') {
+                EvmNonceManager.reset(targetChain, wallet.address);
                 throw new Error(`USDC 授权交易被链上回滚 (tx: ${approveTxHash})`);
               }
             }
@@ -864,18 +913,7 @@ export class OnChainSwapService {
           }
 
           const realTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (nonce) => {
-            const gasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
-            let gasPrice = BigInt(gasPriceHex || '0x4a817c800');
-            // EVM 极速交易 Gas 加价缓冲：基础加价 15%，Turbo 模式加价 25%，防止因网络拥堵或 baseFee 波动卡在 mempool
-            const premium = params.priorityFeeTier === 'turbo' ? 125n : 115n;
-            gasPrice = (gasPrice * premium) / 100n;
-            if (params.gasTip && params.gasTip > 0 && estimatedGas > 0n) {
-              const tipUnits = nativeBaseUnits(params.gasTip.toString(), nativeDecimals);
-              const tipPerGas = tipUnits / estimatedGas;
-              if (tipPerGas > 0n) {
-                gasPrice += tipPerGas;
-              }
-            }
+            const gasPrice = await this.getEffectiveGasPrice(targetChain, params.priorityFeeTier, params.gasTip, nativeDecimals, estimatedGas);
 
             const txDraft = {
               to: evmSpec.routerAddress,
@@ -895,9 +933,10 @@ export class OnChainSwapService {
             console.log(`[OnChainSwap] 📡 Real EVM Buy broadcast to mempool on ${targetChain}! Hash: ${realTxHash}`);
 
             // 2. 真实回执确认 (Receipt Verification)
-            const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 25000);
+            const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 60000);
 
             if (receiptRes.status === 'PENDING') {
+              EvmNonceManager.reset(targetChain, wallet.address);
               return { orderId, chain: targetChain, action: 'BUY',
                 tokenAddress: params.tokenAddress, tokenSymbol: symbol, tokenName: name,
                 amountIn: params.amountNative, estimatedAmountOut: 0, txHash: realTxHash,
@@ -905,6 +944,7 @@ export class OnChainSwapService {
                 error: 'Transaction broadcast; confirmation pending. Do not resubmit.' };
             }
             if (receiptRes.status === 'FAILED') {
+              EvmNonceManager.reset(targetChain, wallet.address);
               console.error(`[OnChainSwap] ❌ EVM Buy REVERTED on-chain on ${targetChain}! Hash: ${realTxHash}`);
               return {
                 orderId,
@@ -927,8 +967,7 @@ export class OnChainSwapService {
             if (feePlan.fee > 0n && feePlan.recipient) {
               try {
                 const feeTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (feeNonce) => {
-                  const feeGasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
-                  const feeGasPrice = BigInt(feeGasPriceHex || '0x4a817c800');
+                  const feeGasPrice = await this.getEffectiveGasPrice(targetChain, 'turbo', undefined, nativeDecimals, EVM_FEE_TRANSFER_GAS);
                   const feeDraft = {
                     to: feePlan.recipient,
                     value: feePlan.fee,
@@ -943,11 +982,36 @@ export class OnChainSwapService {
                 console.log(`[OnChainSwap] 💰 EVM protocol fee broadcast on ${targetChain}: ${feeTxHash}`);
               } catch (feeErr: any) {
                 console.warn(`[OnChainSwap] ⚠️ EVM protocol fee transfer deferred on ${targetChain}:`, feeErr?.message || feeErr);
+              } finally {
+                EvmNonceManager.reset(targetChain, wallet.address);
               }
             }
             const priceNative = market.priceNative > 0 ? market.priceNative : 0.0001;
             const netNative = Number(valueWei) / (10 ** nativeDecimals);
-            const estimatedTokens = (netNative / priceNative) * (1 - (params.slippagePct || 5) / 100);
+            let estimatedTokens = (netNative / priceNative) * (1 - (params.slippagePct || 5) / 100);
+
+            // 查询真实链上到账代币数量
+            try {
+              const erc20Iface = new ethers.Interface(ERC20_ABI);
+              const postBalHex = await this.callEvmRpc(targetChain, 'eth_call', [
+                { to: params.tokenAddress, data: erc20Iface.encodeFunctionData('balanceOf', [wallet.address]) },
+                'latest'
+              ]);
+              if (postBalHex && postBalHex !== '0x') {
+                const balBig = BigInt(postBalHex);
+                if (balBig > 0n) {
+                  let dec = 18;
+                  try {
+                    const decHex = await this.callEvmRpc(targetChain, 'eth_call', [
+                      { to: params.tokenAddress, data: erc20Iface.encodeFunctionData('decimals') },
+                      'latest'
+                    ]);
+                    if (decHex && decHex !== '0x') dec = parseInt(decHex, 16) || 18;
+                  } catch {}
+                  estimatedTokens = parseFloat(ethers.formatUnits(balBig, dec));
+                }
+              }
+            } catch {}
 
             return {
               orderId,
@@ -1422,22 +1486,23 @@ export class OnChainSwapService {
           console.log(`[OnChainSwap] Insufficient allowance for router ${evmSpec.routerAddress}, sending approve for ${rawTokenAmount}...`);
           const approveCalldata = erc20Iface.encodeFunctionData('approve', [evmSpec.routerAddress, rawTokenAmount]);
           const approveTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (approveNonce) => {
-            const approveGasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
+            const approveGasPrice = await this.getEffectiveGasPrice(targetChain, params.priorityFeeTier, params.gasTip, nativeDecimals, 70000n);
             const approveTx = {
               to: params.tokenAddress,
               value: 0n,
               data: approveCalldata,
               nonce: approveNonce,
               gasLimit: 70000n,
-              gasPrice: BigInt(approveGasPriceHex || '0x4a817c800'),
+              gasPrice: approveGasPrice,
               chainId: evmSpec.chainId
             };
             const signedApprove = await wallet.signTransaction(approveTx);
             return await this.callEvmRpc(targetChain, 'eth_sendRawTransaction', [signedApprove]);
           });
           console.log(`[OnChainSwap] Approve broadcast: ${approveTxHash}, waiting for confirmation...`);
-          const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 30000);
+          const approveRes = await this.pollEvmReceipt(targetChain, approveTxHash, 60000);
           if (approveRes.status === 'FAILED') {
+            EvmNonceManager.reset(targetChain, wallet.address);
             return {
               orderId,
               chain: targetChain,
@@ -1454,6 +1519,7 @@ export class OnChainSwapService {
               error: `ERC20 授权交易被合约回滚 (tx: ${approveTxHash})`
             };
           } else if (approveRes.status === 'PENDING') {
+            EvmNonceManager.reset(targetChain, wallet.address);
             return {
               orderId,
               chain: targetChain,
@@ -1569,18 +1635,7 @@ export class OnChainSwapService {
         } catch { /* will fall back to estimated fee */ }
 
         const realTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (nonce) => {
-          const gasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
-          let gasPrice = BigInt(gasPriceHex || '0x4a817c800');
-          // EVM 极速交易 Gas 加价缓冲：基础加价 15%，Turbo 模式加价 25%，防止因网络拥堵或 baseFee 波动卡在 mempool
-          const premium = params.priorityFeeTier === 'turbo' ? 125n : 115n;
-          gasPrice = (gasPrice * premium) / 100n;
-          if (params.gasTip && params.gasTip > 0 && estimatedGas > 0n) {
-            const tipUnits = nativeBaseUnits(params.gasTip.toString(), nativeDecimals);
-            const tipPerGas = tipUnits / estimatedGas;
-            if (tipPerGas > 0n) {
-              gasPrice += tipPerGas;
-            }
-          }
+          const gasPrice = await this.getEffectiveGasPrice(targetChain, params.priorityFeeTier, params.gasTip, nativeDecimals, estimatedGas);
 
           const txDraft = {
             to: evmSpec.routerAddress,
@@ -1598,9 +1653,10 @@ export class OnChainSwapService {
 
         if (realTxHash && typeof realTxHash === 'string' && realTxHash.startsWith('0x')) {
           console.log(`[OnChainSwap] 📡 Real EVM Sell broadcast to mempool on ${targetChain}! Hash: ${realTxHash}`);
-          const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 25000);
+          const receiptRes = await this.pollEvmReceipt(targetChain, realTxHash, 60000);
 
           if (receiptRes.status === 'PENDING') {
+              EvmNonceManager.reset(targetChain, wallet.address);
               return { orderId, chain: targetChain, action: params.sellInitial ? 'SELL_INITIAL' : `SELL_${params.sellPercentage}%`,
                 tokenAddress: params.tokenAddress, tokenSymbol: symbol, tokenName: name,
                 amountIn: tokensToSell, estimatedAmountOut: 0, txHash: realTxHash,
@@ -1608,6 +1664,7 @@ export class OnChainSwapService {
                 error: 'Transaction broadcast; confirmation pending. Do not resubmit.' };
             }
             if (receiptRes.status === 'FAILED') {
+            EvmNonceManager.reset(targetChain, wallet.address);
             console.error(`[OnChainSwap] ❌ EVM Sell REVERTED on-chain on ${targetChain}! Hash: ${realTxHash}`);
             return {
               orderId,
@@ -1649,8 +1706,7 @@ export class OnChainSwapService {
           if (sellFeePlan.fee > 0n && sellFeePlan.recipient) {
             try {
               const feeTxHash = await EvmNonceManager.withLock(targetChain, wallet.address, async (feeNonce) => {
-                const feeGasPriceHex = await this.callEvmRpc(targetChain, 'eth_gasPrice', []);
-                const feeGasPrice = BigInt(feeGasPriceHex || '0x4a817c800');
+                const feeGasPrice = await this.getEffectiveGasPrice(targetChain, 'turbo', undefined, nativeDecimals, EVM_FEE_TRANSFER_GAS);
                 const feeDraft = {
                   to: sellFeePlan.recipient,
                   value: sellFeePlan.fee,
@@ -1665,6 +1721,8 @@ export class OnChainSwapService {
               console.log(`[OnChainSwap] 💰 EVM sell protocol fee broadcast on ${targetChain}: ${feeTxHash}`);
             } catch (feeErr: any) {
               console.warn(`[OnChainSwap] ⚠️ EVM sell protocol fee transfer deferred on ${targetChain}:`, feeErr?.message || feeErr);
+            } finally {
+              EvmNonceManager.reset(targetChain, wallet.address);
             }
           }
 
