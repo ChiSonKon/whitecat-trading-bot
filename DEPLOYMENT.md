@@ -1,16 +1,16 @@
 # Protocol Fee Deployment & Integration Guide
 
-**Pre-deployment Notice**: EVM (BSC/ETH/Base/Arc), Solana, and Sui protocol fee logic is fully implemented in code and passed 100% of safety regression tests (**38/38 passed**). Before deploying to production, valid cold wallet recipient addresses must be configured in `.env`, and the team/user must confirm the on-chain settlement mode (two-transaction decoupled mode vs atomic router contract). TON / Gram swaps remain safely disabled pending router rollout.
+**Pre-deployment Notice**: EVM (BSC/ETH/Base/Arc 5042), Solana, Sui, and TON / Gram protocol fee logic is fully implemented and passed 100% of safety regression tests (**38/38 passed**). Before deploying to production, valid cold wallet recipient addresses must be configured in `.env`, and the team/user must confirm the on-chain settlement mode (two-transaction decoupled mode vs atomic router contract). TON / Gram is fully supported and active (not disabled).
 
 > 🤖 **Public Demo Bot**: [@wctibot](https://t.me/wctibot) is strictly a public **Demo Prototype (演示产品)** for feature trials. Dedicated commercial deployments should configure their own independent bot token and recipient wallets.
 
 本开源项目默认包含 0.6% 的开发者生态维护税（Protocol Fee），用于支持白猫项目的开源开发与节点基础设施维护。使用者可在 `.env` 中通过 `PROTOCOL_FEE_RATE=0` 自主调零或修改为你自己的钱包地址。
 
 In this implementation:
-- **EVM (BSC, ETH, Base, Arc)**: Native asset (BNB/ETH/USDC) buy splits gross amount in wei; net is routed to router with slippage protection. Upon swap success, the fee is transferred via `EvmNonceManager`. Sell calculates fee on confirmed native return and transfers it.
+- **EVM (BSC, ETH, Base, Arc 5042)**: Native asset (BNB/ETH/USDC) buy splits gross amount in wei; net is routed to router with slippage protection. Upon swap success, the fee is transferred via `EvmNonceManager`. Sell calculates fee on confirmed native return and transfers it.
 - **Solana**: Native SOL buy splits lamports; net is routed to Jupiter quote. Upon confirmation, fee is transferred via `SystemProgram.transfer`. Sell calculates fee on confirmed SOL return and transfers it.
 - **Sui**: Native SUI buy splits fee atomically within the PTB. Sell sets 7k SDK commission parameters. SDK compatibility (`balanceChanges`) and timeout local digest preservation are fully implemented.
-- **TON / Gram**: TON 链（现亦称 Gram 生态）Swap 执行目前保持安全拦截（Fail-closed）。预设开发者冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`。
+- **TON / Gram**: TON / Gram 原生生态全面支持，协议分成全面启用（不禁用）。预设开发者冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`。
 
 ## Configuration
 

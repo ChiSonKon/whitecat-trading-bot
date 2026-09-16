@@ -5,7 +5,8 @@
 - **核心目录**: `bot-gateway-ts` (TypeScript + grammY 架构)
 - **多链支持**: 11 条主流链 (Arc Chain 5042, BSC, Robinhood, Sui, Base, Solana, Ethereum, Sei, TON / Gram, XLayer, Aptos)。
   - 全公链与 Sui 链行为 100% 对齐：0 余额真实拦截、私钥签名与广播、节点高可用容灾。
-  - TON (Gram) 交易目前保持安全禁用 (Fail-closed)。
+  - TON / Gram 原生生态全面支持，分成协议全面启用（不禁用），已配置冷钱包收款地址。
+  - 官方开源仓库: [ChiSonKon/whitecat-trading-bot](https://github.com/ChiSonKon/whitecat-trading-bot)。
 - **公共演示定位**: 官方公共 Bot [@wctibot](https://t.me/wctibot) 仅作为 Demo 演示产品，独立商用需配置专属 Bot。
 - **安全回归测试**: 运行 `node --test tests/*.test.mjs` 必须 100% 通过全量 38 项测试（`pass 38, fail 0`）。
 - **国际化系统**: `src/services/i18nService.ts` 完整支持 11 种语言 (`zh-hans`, `zh-hant`, `en`, `ru`, `vi`, `ko`, `ja`, `es`, `tr`, `pl`, `de`)。新增任何菜单或按钮文案必须同步全量 11 种语言。

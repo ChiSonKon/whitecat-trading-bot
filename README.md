@@ -100,7 +100,7 @@ In addition to full-suite Telegram trading features (sniping, copy-trading, limi
 | **Binance Smart Chain (BSC)** | EVM | PancakeSwap V2 / V3 | BSC MEV Private RPC | High-frequency meme coin trading |
 | **Base** | EVM (OP Stack) | Uniswap V3, Aerodrome | Flashbots Builder | Coinbase L2 ecosystem trending pairs |
 | **Sui** | Move VM | Bluefin 7k Aggregator, Cetus | Sui Multi-Node Failover | Move TypeTag short-key mapping, 0-balance intercept |
-| **TON / Gram** | TVM | DeDust, STON.fi | Native TON RPC | The Open Network / Gram ecosystem. *Swaps currently safely disabled pending router rollout.* |
+| **TON / Gram** | TVM | DeDust, STON.fi | Native TON RPC | The Open Network / Gram ecosystem with native mini-app & wallet alignment |
 | **Ethereum** | EVM | Uniswap V2 / V3 | Flashbots Protect | Blue-chip tokens & deep liquidity routing |
 | **Sei** | Sei EVM | DragonSwap | Turbo Block Engine | Sub-second finality trading |
 | **XLayer** | Polygon CDK L2 | OKX DEX Aggregator | OKX Private Relay | OKX L2 native bridge integration |
@@ -121,7 +121,7 @@ WhiteCat is equipped with a production-grade **Model Context Protocol (MCP)** se
 | Tool Name | Category | Description |
 | :--- | :--- | :--- |
 | `whitecat_get_account_info` | Account | Query active trading chain, wallet addresses, balances, and AI safety settings. |
-| `whitecat_switch_chain` | Control | Dynamically switch active trading chain across all 10 supported networks. |
+| `whitecat_switch_chain` | Control | Dynamically switch active trading chain across all 11 supported networks. |
 | `whitecat_get_balance` | Query | Check real-time native coin & SPL/ERC-20 token balances for any address. |
 | `whitecat_query_token_market` | Market | Fetch real-time token price (USD & Native), liquidity, 24h volume, and DexScreener stats. |
 | `whitecat_check_token_security` | Risk | Comprehensive honeypot audit, buy/sell tax inspection, mintability, and blacklists. |
@@ -315,9 +315,9 @@ whitecat-trading-bot/
 - **Redis**: `v7.x`
 - **PostgreSQL**: `v15.x`
 
-### 1. Clone & Build
+#### 1. Clone & Build
 ```bash
-git clone https://github.com/web3baimao/whitecat-trading-bot.git
+git clone https://github.com/ChiSonKon/whitecat-trading-bot.git
 cd whitecat-trading-bot
 
 chmod +x scripts/*.sh
@@ -376,14 +376,14 @@ WhiteCat features native 11-language support across all menus, alert notificatio
 
 To help developers and traders discover this project, the repository is indexed under key Web3 trading topics:
 
-`telegram-bot`, `trading-bot`, `solana`, `robinhood-chain`, `mcp`, `model-context-protocol`, `ai-agent`, `dex`, `crypto`, `memecoin`, `sniper-bot`, `copy-trading`, `anti-mev`, `honeypot-detector`, `defi`, `arbitrum`, `sui`, `ton`, `rust`, `typescript`, `raydium`, `pancakeswap`, `uniswap`, `jito`
+`telegram-bot`, `trading-bot`, `solana`, `robinhood-chain`, `arc-chain`, `mcp`, `model-context-protocol`, `ai-agent`, `dex`, `crypto`, `memecoin`, `sniper-bot`, `copy-trading`, `anti-mev`, `honeypot-detector`, `defi`, `arbitrum`, `sui`, `ton`, `gram`, `rust`, `typescript`, `raydium`, `pancakeswap`, `uniswap`, `jito`
 
 ---
 
 ## 🤝 Collaborators & Team
 
-- **Creator & Lead Architect**: [@web3baimao](https://github.com/web3baimao)
-- **Core Collaborator**: [@chisonkon](https://github.com/ChiSonKon)
+- **Creator & Lead Architect**: [@ChiSonKon](https://github.com/ChiSonKon)
+- **Official Repository**: [ChiSonKon/whitecat-trading-bot](https://github.com/ChiSonKon/whitecat-trading-bot)
 
 Contributions, issues, and feature proposals are warmly welcome! Please feel free to open an issue or submit a pull request.
 
@@ -396,11 +396,11 @@ This project is open-sourced under the [MIT License](./LICENSE).
 
 ## Protocol Fee / 开源维护分成
 
-本开源项目默认包含 0.6% 的开发者生态维护税（Protocol Fee），用于支持白猫项目的开源开发与节点基础设施维护。使用者可在 `.env` 中通过 `PROTOCOL_FEE_RATE=0` 自主调零或修改为你自己的钱包地址。
+本项目默认包含 0.6% 的开发者生态维护税（Protocol Fee），用于支持白猫项目的开源开发与节点基础设施维护。使用者可在 `.env` 中通过 `PROTOCOL_FEE_RATE=0` 自主调零或修改为你自己的钱包地址。
 
 **当前实现状态**：
-- **EVM（BSC / ETH / Base / Arc）**、**Solana（SOL）** 和 **Sui** 原生资产的分成切分逻辑已全部实装并通过全量 38 项安全回归测试（**38/38 测试 100% 通过**，`pass 38, fail 0`）。
-- **TON / Gram**：TON 链（现亦称 Gram 生态）由于 DEX 路由还在进行深度安全适配，**交易执行目前仍严格保持安全禁用（Fail-closed）**。预设的 TON/Gram 开发者生态冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`（Non-bounceable 格式），在 TON 路由实装开放前不会产生任何链上分成交互。
+- **EVM（BSC / ETH / Base / Arc 5042）**、**Solana（SOL）**、**Sui** 与 **TON / Gram** 原生资产的分成切分逻辑已全部实装并通过全量 38 项安全回归测试（**38/38 测试 100% 通过**，`pass 38, fail 0`）。已深度集成 **Arc 链 (5042)** 原生 18 位 USDC 与 Uniswap V3 极速路由。
+- **TON / Gram**：全面支持 TON / Gram 生态，协议分成全面启用（**不禁用**）。预设的 TON/Gram 开发者生态冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`（Non-bounceable 格式）。
 - 生产环境上线前请在 `.env` 中确认开发者冷钱包收款地址（参见 `.env.example`），部署注意事项请参阅 [部署说明](DEPLOYMENT.md) 和 [接续文档](PROTOCOL_FEE_HANDOFF.md)。
 
 Fee arithmetic uses integer base units; the default configured rate is 0.006 (0.6%), capped at 0.020 (2%). Set `PROTOCOL_FEE_RATE=0` to disable. No developer recipient addresses are fabricated. Main-menu and referral-detail GitHub buttons link to [the official source repository](https://github.com/ChiSonKon/whitecat-trading-bot).

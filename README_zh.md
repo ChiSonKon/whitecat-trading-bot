@@ -74,7 +74,7 @@
 | **Binance Smart Chain (BSC)** | EVM | PancakeSwap V2/V3 | BSC MEV Private RPC | 高频土狗打狗 |
 | **Base** | EVM (OP Stack) | Uniswap V3, Aerodrome | Flashbots Builder | Coinbase L2 热点币狙击 |
 | **Sui** | Move VM | Bluefin, Cetus | Sui Multi-Node Failover | Move 原生代币短 Key 体系 |
-| **TON / Gram** | TVM | DeDust, STON.fi | Direct TON RPC | Telegram 原生生态集成 (*交易执行目前保持安全禁用*) |
+| **TON / Gram** | TVM | DeDust, STON.fi | Direct TON RPC | Telegram 原生生态集成，支持 TON / Gram 资产交互 |
 | **Ethereum** | EVM | Uniswap V2/V3 | Flashbots Protect | 经典主流资产 |
 | **Sei** | Sei EVM | DragonSwap | Turbo Block Time | 亚秒级极速撮合 |
 | **XLayer** | Polygon CDK L2 | OKX DEX | OKX Private Relay | OKX 官方 L2 网络 |
@@ -208,7 +208,7 @@ whitecat-trading-bot/
 ### 2. 执行全量构建
 ```bash
 # 克隆仓库
-git clone https://github.com/web3baimao/whitecat-trading-bot.git
+git clone https://github.com/ChiSonKon/whitecat-trading-bot.git
 cd whitecat-trading-bot
 
 # 赋予执行权限并全量构建
@@ -245,8 +245,8 @@ python3 tests/test_e2e_flow.py
 
 欢迎提交 Issue 与 Pull Request！共同打造全网最快、最安全的多链交易与 MCP 智能体基础设施。
 
-- **核心作者**: [web3baimao](https://github.com/web3baimao)
-- **核心协同开发者**: [chisonkon](https://github.com/ChiSonKon)
+- **核心作者 / 架构师**: [ChiSonKon](https://github.com/ChiSonKon)
+- **官方开源仓库**: [ChiSonKon/whitecat-trading-bot](https://github.com/ChiSonKon/whitecat-trading-bot)
 
 ## 📄 开源许可证
 
@@ -259,8 +259,8 @@ python3 tests/test_e2e_flow.py
 本项目默认包含 0.6% 的开发者生态维护税（Protocol Fee），用于支持白猫项目的开源开发与节点基础设施维护。使用者可在 `.env` 中通过 `PROTOCOL_FEE_RATE=0` 自主调零或修改为你自己的钱包地址。
 
 **当前各链实装与运行状态**：
-- **EVM（BSC / ETH / Base / Arc）**、**Solana（SOL）** 与 **Sui**：分成切分逻辑已全部实装并通过全量 38 项安全回归测试（**38/38 测试 100% 通过**，`pass 38, fail 0`）。
-- **TON / Gram**：TON 链（现亦称 Gram 生态）由于 TVM 路由还在进行深度安全适配，**交易执行目前严格保持安全禁用（Fail-closed）**。预设的 TON/Gram 开发者生态冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`（Non-bounceable 格式），在 TON 路由实装开放前不会产生任何链上分成交互。
+- **EVM（BSC / ETH / Base / Arc 5042）**、**Solana（SOL）**、**Sui** 与 **TON / Gram**：分成切分逻辑已全部实装并通过全量 38 项安全回归测试（**38/38 测试 100% 通过**，`pass 38, fail 0`）。已深度集成 **Arc 链 (5042)** 原生 18 位 USDC 与 Uniswap V3 极速路由。
+- **TON / Gram**：全面支持 TON / Gram 生态，协议分成全面启用（**不禁用**）。预设的 TON/Gram 开发者生态冷钱包收款地址为 `UQCZHJD5q7BMyAau7baOHGcww7w127xZK2rTdvqzv4IWOXXh`（Non-bounceable 格式）。
 - 生产环境上线前请在 `.env` 中确认开发者冷钱包收款地址（参见 `.env.example`），部署注意事项请参阅 [部署说明](DEPLOYMENT.md) 和 [接续文档](PROTOCOL_FEE_HANDOFF.md)。
 
 费率计算采用整型最小单位计算，默认配置为 0.006 (0.6%)，上限 0.020 (2%)。可通过在 `.env` 中设置 `PROTOCOL_FEE_RATE=0` 彻底免除。主菜单及返佣明细中的 GitHub 链接均指向 [官方开源代码仓库](https://github.com/ChiSonKon/whitecat-trading-bot)。
