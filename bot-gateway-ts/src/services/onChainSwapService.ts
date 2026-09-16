@@ -89,7 +89,7 @@ const EVM_SPECS: Record<string, EvmChainSpec> = {
     chainId: 5042,
     symbol: 'USDC',
     rpcUrls: ['https://niorfun.com/api/rpc', 'https://rpc.arc-scan.org'],
-    routerAddress: process.env.ARC_ROUTER_ADDRESS || '0x4E3bcCE28cAf98A143Fd8BD9e4875ccAb3E7bBE0',
+    routerAddress: process.env.ARC_ROUTER_ADDRESS || '0x53bf6b0684ec7ef91e1387da3d1a1769bc5a6f77',
     wrappedNative: process.env.ARC_WRAPPED_NATIVE || '0x3600000000000000000000000000000000000000',
     factoryAddress: process.env.ARC_FACTORY_ADDRESS || '0xf0db7b58379503491d857dB50AC9ece64c653918',
     nativeDecimals: 18,
@@ -121,6 +121,14 @@ const EVM_SPECS: Record<string, EvmChainSpec> = {
     nativeDecimals: 18
   }
 };
+
+const UNISWAP_V3_ROUTER_ABI = [
+  'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)',
+  'function exactInput((bytes path, address recipient, uint256 amountIn, uint256 amountOutMinimum)) payable returns (uint256 amountOut)',
+  'function multicall(uint256 deadline, bytes[] data) payable returns (bytes[])',
+  'function factory() external view returns (address)',
+  'function WETH9() external view returns (address)'
+];
 
 const UNISWAP_ROUTER_ABI = [
   'function getAmountsOut(uint amountIn, address[] calldata path) view returns (uint[] amounts)',
@@ -334,20 +342,20 @@ export class OnChainSwapService {
     if (msg.includes('EXPIRED')) {
       return '交易签名已超时失效，请重试。';
     }
-    if (msg.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
+    if (msg.includes('INSUFFICIENT_OUTPUT_AMOUNT') || msg.includes('Too little received') || msg.includes('TLM')) {
       return '价格滑点超限或流动性不足，请在设置中调高滑点重试。';
     }
-    if (msg.includes('TRANSFER_FROM_FAILED')) {
-      return '代币授权额度不足或转账失败。';
+    if (msg.includes('TRANSFER_FROM_FAILED') || msg.includes('STF')) {
+      return '代币授权额度不足或转账失败 (TransferFrom failed)。';
     }
-    if (msg.includes('TRANSFER_FAILED')) {
+    if (msg.includes('TRANSFER_FAILED') || msg.includes('TF')) {
       return '代币转账失败，合约可能存在买卖税或交易限制。';
     }
     if (msg.includes('Pancake: K') || msg.includes('UniswapV2: K')) {
       return '交易对流动性恒定乘积 K 值异常，池子流动性可能正在剧烈变动。';
     }
     if (msg.includes('execution reverted: 0x') || msg.includes('execution reverted') || msg.includes('reverted')) {
-      return '该代币在当前 DEX (如 PancakeSwap) 暂无有效交易对或流动性池不存在。交易已被安全拦截，未扣除 Gas 费。';
+      return '链上模拟执行被回滚。可能由于价格滑点超限或流动性不足，请在设置中调高滑点重试。';
     }
     return msg || 'EVM 链上模拟执行失败';
   }
@@ -784,15 +792,16 @@ export class OnChainSwapService {
               }
             }
 
-            const v3RouterIface = new ethers.Interface([
-              'function uniswapV3SwapTo(uint256 receiver, uint256 amount, uint256 minReturn, uint256[] pools) returns (uint256)'
-            ]);
-            calldata = v3RouterIface.encodeFunctionData('uniswapV3SwapTo', [
-              BigInt(wallet.address),
-              valueUnits,
-              minOut,
-              pools
-            ]);
+            const v3RouterIface = new ethers.Interface(UNISWAP_V3_ROUTER_ABI);
+            calldata = v3RouterIface.encodeFunctionData('exactInputSingle', [{
+              tokenIn: usdcAddr,
+              tokenOut: params.tokenAddress,
+              fee: v3Pool.fee,
+              recipient: wallet.address,
+              amountIn: valueUnits,
+              amountOutMinimum: minOut,
+              sqrtPriceLimitX96: 0n
+            }]);
             txValue = 0n; // msg.value 必须为 0
           } else {
             const minimum = await this.minimumOutput(targetChain, valueWei, path, params.slippagePct);
@@ -1490,15 +1499,16 @@ export class OnChainSwapService {
             : 0.1;
           const minReturnUnits = BigInt(Math.floor(sellExpectedNative * (1 - (params.slippagePct || 5) / 100) * 1e6));
 
-          const v3RouterIface = new ethers.Interface([
-            'function uniswapV3SwapTo(uint256 receiver, uint256 amount, uint256 minReturn, uint256[] pools) returns (uint256)'
-          ]);
-          calldata = v3RouterIface.encodeFunctionData('uniswapV3SwapTo', [
-            BigInt(wallet.address),
-            rawTokenAmount,
-            minReturnUnits > 0n ? minReturnUnits : 1n,
-            pools
-          ]);
+          const v3RouterIface = new ethers.Interface(UNISWAP_V3_ROUTER_ABI);
+          calldata = v3RouterIface.encodeFunctionData('exactInputSingle', [{
+            tokenIn: params.tokenAddress,
+            tokenOut: usdcAddr,
+            fee: v3Pool.fee,
+            recipient: wallet.address,
+            amountIn: rawTokenAmount,
+            amountOutMinimum: minReturnUnits > 0n ? minReturnUnits : 1n,
+            sqrtPriceLimitX96: 0n
+          }]);
         } else {
           minimum = await this.minimumOutput(targetChain, rawTokenAmount, path, params.slippagePct);
           calldata = routerIface.encodeFunctionData('swapExactTokensForETHSupportingFeeOnTransferTokens', [
