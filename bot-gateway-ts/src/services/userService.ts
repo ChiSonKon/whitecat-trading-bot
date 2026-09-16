@@ -1,3 +1,4 @@
+import { decodeStore, writeStoreAtomic } from './encryptedStore.js';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -11,8 +12,9 @@ import { ChainBalanceService } from './chainBalanceService.js';
 import { fileURLToPath } from 'url';
 
 export interface PendingAction {
-  type: 'buy_x' | 'sell_x' | 'query_ca' | 'add_copy' | 'transfer_native' | 'transfer_native_amount' | 'transfer_token' | 'transfer_token_to' | 'transfer_token_amount' | 'set_tip';
+  type: 'buy_x' | 'sell_x' | 'query_ca' | 'add_copy' | 'transfer_native' | 'transfer_native_amount' | 'transfer_token' | 'transfer_token_to' | 'transfer_token_amount' | 'set_tip' | 'rename_wallet' | 'set_buy_preset' | 'set_sell_preset' | 'add_limit_order' | 'import_wallet';
   data?: any;
+  createdAt?: number;
 }
 
 export interface UserTokenHolding {
@@ -56,7 +58,7 @@ export interface UserState {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_FILE = path.join(__dirname, '../../data/user_store.json');
+const DATA_FILE = process.env.USER_STORE_FILE || path.join(__dirname, '../../data/user_store.json');
 export const userStore = new Map<number, UserState>();
 
 export function generateRandomHex(len: number): string {
@@ -69,78 +71,113 @@ export function generateRandomHex(len: number): string {
 }
 
 export function generateMcpToken(): string {
-  return `wc_sec_${generateRandomHex(24)}`;
+  return `wc_sec_${crypto.randomBytes(32).toString('hex')}`;
+}
+
+export function generateUniqueReferralCode(): string {
+  while (true) {
+    const code = `WC${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    let collision = false;
+    for (const u of userStore.values()) {
+      if (u.referralCode === code) {
+        collision = true;
+        break;
+      }
+    }
+    if (!collision) return code;
+  }
+}
+
+let isStoreWriting = false;
+let hasPendingStoreSave = false;
+
+function executeSaveUserStoreSync(): void {
+  const rawObj: Record<string, any> = {};
+  userStore.forEach((user, uid) => {
+    const walletsObj: Record<string, WalletEntry[]> = {};
+    if (user.walletsByChain instanceof Map) {
+      user.walletsByChain.forEach((wl, ch) => {
+        walletsObj[ch] = wl;
+      });
+    } else if (user.walletsByChain && typeof user.walletsByChain === 'object') {
+      Object.assign(walletsObj, user.walletsByChain);
+    }
+    const holdingsObj: Record<string, any> = {};
+    if (user.tokenHoldings instanceof Map) {
+      user.tokenHoldings.forEach((h, ca) => {
+        holdingsObj[ca] = {
+          tokenAddress: h.tokenAddress,
+          chain: h.chain,
+          symbol: h.symbol,
+          name: h.name,
+          amount: h.amount,
+          costNative: h.costNative,
+          totalBoughtNative: h.totalBoughtNative ?? h.costNative ?? 0,
+          totalSoldNative: h.totalSoldNative ?? 0
+        };
+      });
+    } else if (user.tokenHoldings && typeof user.tokenHoldings === 'object') {
+      Object.assign(holdingsObj, user.tokenHoldings);
+    }
+    rawObj[uid.toString()] = {
+      userId: user.userId,
+      username: user.username,
+      activeChain: user.activeChain,
+      lang: user.lang,
+      onboarded: user.onboarded ?? true,
+      walletsByChain: walletsObj,
+      tokenHoldings: holdingsObj,
+      referralCode: user.referralCode,
+      inviterId: user.inviterId,
+      invitedCount: user.invitedCount || 0,
+      tradedUsersCount: user.tradedUsersCount || 0,
+      tradeCount: user.tradeCount || 0,
+      tradeVolume: user.tradeVolume || 0,
+      totalEarned: user.totalEarned || 0,
+      claimableCommission: user.claimableCommission || 0,
+      claimedCommission: user.claimedCommission || 0,
+      monitoredWallets: user.monitoredWallets,
+      limitOrders: user.limitOrders,
+      tradeConfig: user.tradeConfig,
+      pendingAction: user.pendingAction,
+      transactions: user.transactions || [],
+      mcpToken: user.mcpToken,
+      mcpAutoTradeEnabled: user.mcpAutoTradeEnabled !== false,
+      mcpMaxTradeLimit: user.mcpMaxTradeLimit ?? 0.5
+    };
+  });
+  const dir = path.dirname(DATA_FILE);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  writeStoreAtomic(DATA_FILE, rawObj);
 }
 
 export function saveUserStore(): void {
   try {
-    const rawObj: Record<string, any> = {};
-    userStore.forEach((user, uid) => {
-      const walletsObj: Record<string, WalletEntry[]> = {};
-      if (user.walletsByChain instanceof Map) {
-        user.walletsByChain.forEach((wl, ch) => {
-          walletsObj[ch] = wl;
-        });
-      } else if (user.walletsByChain && typeof user.walletsByChain === 'object') {
-        Object.assign(walletsObj, user.walletsByChain);
-      }
-      const holdingsObj: Record<string, any> = {};
-      if (user.tokenHoldings instanceof Map) {
-        user.tokenHoldings.forEach((h, ca) => {
-          holdingsObj[ca] = {
-            tokenAddress: h.tokenAddress,
-            chain: h.chain,
-            symbol: h.symbol,
-            name: h.name,
-            amount: h.amount,
-            costNative: h.costNative,
-            totalBoughtNative: h.totalBoughtNative ?? h.costNative ?? 0,
-            totalSoldNative: h.totalSoldNative ?? 0
-          };
-        });
-      } else if (user.tokenHoldings && typeof user.tokenHoldings === 'object') {
-        Object.assign(holdingsObj, user.tokenHoldings);
-      }
-      rawObj[uid.toString()] = {
-        userId: user.userId,
-        username: user.username,
-        activeChain: user.activeChain,
-        lang: user.lang,
-        onboarded: user.onboarded ?? true,
-        walletsByChain: walletsObj,
-        tokenHoldings: holdingsObj,
-        referralCode: user.referralCode,
-        inviterId: user.inviterId,
-        invitedCount: user.invitedCount || 0,
-        tradedUsersCount: user.tradedUsersCount || 0,
-        tradeCount: user.tradeCount || 0,
-        tradeVolume: user.tradeVolume || 0,
-        totalEarned: user.totalEarned || 0,
-        claimableCommission: user.claimableCommission || 0,
-        claimedCommission: user.claimedCommission || 0,
-        monitoredWallets: user.monitoredWallets,
-        limitOrders: user.limitOrders,
-        tradeConfig: user.tradeConfig,
-        transactions: user.transactions || [],
-        mcpToken: user.mcpToken,
-        mcpAutoTradeEnabled: user.mcpAutoTradeEnabled !== false,
-        mcpMaxTradeLimit: user.mcpMaxTradeLimit ?? 0.5
-      };
-    });
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (isStoreWriting) {
+      hasPendingStoreSave = true;
+      return;
     }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(rawObj, null, 2), 'utf-8');
+    isStoreWriting = true;
+    try {
+      do {
+        hasPendingStoreSave = false;
+        executeSaveUserStoreSync();
+      } while (hasPendingStoreSave);
+    } finally {
+      isStoreWriting = false;
+    }
   } catch (err: any) {
-    console.warn('[UserStore] Failed to save user_store.json:', err?.message);
+    throw new Error('Failed to persist encrypted user store', { cause: err });
   }
 }
 
 export function loadUserStore(): void {
   try {
     if (fs.existsSync(DATA_FILE)) {
-      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+      const { data, legacy } = decodeStore(fs.readFileSync(DATA_FILE, 'utf-8'));
+      if (legacy) writeStoreAtomic(DATA_FILE, data);
       for (const uidStr of Object.keys(data)) {
         const u = data[uidStr];
         const uid = parseInt(uidStr, 10);
@@ -181,6 +218,7 @@ export function loadUserStore(): void {
           }
         }
         const transactions: UserTransactionRecord[] = Array.isArray(u.transactions) ? u.transactions : [];
+        const isActionValid = u.pendingAction && (!u.pendingAction.createdAt || (Date.now() - u.pendingAction.createdAt < 3600 * 1000));
         userStore.set(uid, {
           userId: u.userId,
           username: u.username || 'trader',
@@ -189,7 +227,7 @@ export function loadUserStore(): void {
           onboarded: u.onboarded !== undefined ? u.onboarded : true,
           walletsByChain,
           tokenHoldings,
-          referralCode: u.referralCode || `WC${uid.toString().slice(-4)}`,
+          referralCode: u.referralCode || generateUniqueReferralCode(),
           inviterId: u.inviterId,
           invitedCount: u.invitedCount || 0,
           tradedUsersCount: u.tradedUsersCount || 0,
@@ -201,6 +239,7 @@ export function loadUserStore(): void {
           monitoredWallets: u.monitoredWallets || [],
           limitOrders: u.limitOrders || [],
           transactions,
+          pendingAction: isActionValid ? u.pendingAction : undefined,
           tradeConfig: u.tradeConfig || {
             mode: 'fast',
             gasTip: 0.001,
@@ -217,7 +256,7 @@ export function loadUserStore(): void {
       console.log(`[UserStore] Loaded ${userStore.size} users from ${DATA_FILE}`);
     }
   } catch (err: any) {
-    console.warn('[UserStore] Failed to load user_store.json:', err?.message);
+    throw new Error('Cannot load user store; refusing to start with empty wallets', { cause: err });
   }
 }
 
@@ -226,6 +265,7 @@ loadUserStore();
 
 export function getOrCreateUser(userId: number | string, username: string = 'trader'): UserState {
   const numId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+  if (!Number.isSafeInteger(numId) || numId <= 0) throw new Error('Invalid Telegram user ID');
   let user = userStore.get(numId);
   if (!user) {
     user = {
@@ -237,7 +277,7 @@ export function getOrCreateUser(userId: number | string, username: string = 'tra
       walletsByChain: new Map<string, WalletEntry[]>(),
       tokenHoldings: new Map<string, UserTokenHolding>(),
       transactions: [],
-      referralCode: `WC${numId.toString().slice(-4)}`,
+      referralCode: generateUniqueReferralCode(),
       inviterId: undefined,
       invitedCount: 0,
       tradedUsersCount: 0,
@@ -310,8 +350,170 @@ export async function syncWalletBalances(user: UserState, chain?: string): Promi
   saveUserStore();
 }
 
-export async function syncTokenHoldings(user: UserState, chain?: string): Promise<void> {
+export async function syncTokenHoldings(user: UserState, chain?: string, specificTokenAddress?: string): Promise<void> {
   const targetChain = (chain || user.activeChain).toLowerCase();
+
+  const evmChains = ['bsc', 'base', 'ethereum', 'robinhood', 'sei', 'xlayer', 'arc'];
+  if (evmChains.includes(targetChain)) {
+    const targetWallets = getUserWallets(user, targetChain);
+    const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
+    if (!targetWallet) return;
+
+    try {
+      const { OnChainSwapService } = await import('./onChainSwapService.js');
+      const { TokenMarketService } = await import('./tokenMarketService.js');
+
+      // 1. 如果指定了特定的代币地址，确保将其纳入待同步集合
+      const tokensToQuery = new Map<string, string>(); // lowerCa -> originalTokenAddress
+      if (specificTokenAddress && specificTokenAddress.startsWith('0x') && specificTokenAddress.length === 42) {
+        tokensToQuery.set(specificTokenAddress.toLowerCase(), specificTokenAddress);
+      }
+      for (const [key, holding] of user.tokenHoldings.entries()) {
+        if (holding.chain.toLowerCase() === targetChain && holding.tokenAddress) {
+          tokensToQuery.set(key.toLowerCase(), holding.tokenAddress);
+        }
+      }
+
+      const cleanAddr = targetWallet.address.toLowerCase().replace('0x', '').padStart(64, '0');
+      const balData = `0x70a08231${cleanAddr}`;
+
+      for (const [lowerCa, tokenAddr] of tokensToQuery.entries()) {
+        try {
+          const balHex = await OnChainSwapService.callEvmRpc(targetChain, 'eth_call', [
+            { to: tokenAddr, data: balData },
+            'latest'
+          ]);
+          if (balHex && typeof balHex === 'string' && balHex !== '0x') {
+            const rawBal = BigInt(balHex);
+            let decimals = 18;
+            try {
+              const decHex = await OnChainSwapService.callEvmRpc(targetChain, 'eth_call', [
+                { to: tokenAddr, data: '0x313ce567' },
+                'latest'
+              ]);
+              if (decHex && typeof decHex === 'string' && decHex !== '0x') {
+                decimals = parseInt(decHex, 16) || 18;
+              }
+            } catch {}
+
+            const tokenAmount = Number(rawBal) / Math.pow(10, decimals);
+            const existing = user.tokenHoldings.get(lowerCa);
+
+            if (tokenAmount > 1e-6) {
+              if (existing) {
+                existing.amount = tokenAmount;
+                user.tokenHoldings.set(lowerCa, existing);
+              } else {
+                // 自动补齐元数据
+                let symbol = 'TOKEN';
+                let name = 'Token';
+                try {
+                  const meta = await TokenMarketService.fetchTokenDetails(tokenAddr, targetChain);
+                  if (meta?.symbol) symbol = meta.symbol;
+                  if (meta?.name) name = meta.name;
+                } catch {}
+                user.tokenHoldings.set(lowerCa, {
+                  tokenAddress: tokenAddr,
+                  chain: targetChain,
+                  symbol,
+                  name,
+                  amount: tokenAmount,
+                  costNative: 0,
+                  totalBoughtNative: 0,
+                  totalSoldNative: 0
+                });
+              }
+            } else if (existing) {
+              user.tokenHoldings.delete(lowerCa);
+            }
+          }
+        } catch {}
+      }
+      saveUserStore();
+    } catch (err: any) {
+      console.warn(`[SyncHoldings] EVM token sync error:`, err?.message);
+    }
+    return;
+  }
+
+  // Solana 链支持
+  if (targetChain === 'solana') {
+    const targetWallets = getUserWallets(user, targetChain);
+    const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
+    if (!targetWallet) return;
+
+    try {
+      const { OnChainSwapService } = await import('./onChainSwapService.js');
+      const { TokenMarketService } = await import('./tokenMarketService.js');
+
+      // 1. 若指定特定 mint，优先定向查询
+      if (specificTokenAddress && specificTokenAddress.length >= 32) {
+        try {
+          const accs = await OnChainSwapService.callSolanaRpc('getTokenAccountsByOwner', [
+            targetWallet.address,
+            { mint: specificTokenAddress },
+            { encoding: 'jsonParsed' }
+          ]);
+          const tokenAcc = accs?.value?.[0];
+          const tokenAmount = tokenAcc?.account?.data?.parsed?.info?.tokenAmount?.uiAmount ?? 0;
+          const lowerCa = specificTokenAddress.toLowerCase();
+          const existing = user.tokenHoldings.get(lowerCa);
+
+          if (tokenAmount > 1e-6) {
+            if (existing) {
+              existing.amount = tokenAmount;
+              user.tokenHoldings.set(lowerCa, existing);
+            } else {
+              let symbol = 'TOKEN';
+              let name = 'Token';
+              try {
+                const meta = await TokenMarketService.fetchTokenDetails(specificTokenAddress, 'solana');
+                if (meta?.symbol) symbol = meta.symbol;
+                if (meta?.name) name = meta.name;
+              } catch {}
+              user.tokenHoldings.set(lowerCa, {
+                tokenAddress: specificTokenAddress,
+                chain: 'solana',
+                symbol,
+                name,
+                amount: tokenAmount,
+                costNative: 0,
+                totalBoughtNative: 0,
+                totalSoldNative: 0
+              });
+            }
+          } else if (existing) {
+            user.tokenHoldings.delete(lowerCa);
+          }
+        } catch {}
+      }
+
+      // 2. 同时遍历已记录的 Solana 代币
+      for (const [key, holding] of user.tokenHoldings.entries()) {
+        if (holding.chain.toLowerCase() === 'solana') {
+          try {
+            const accs = await OnChainSwapService.callSolanaRpc('getTokenAccountsByOwner', [
+              targetWallet.address,
+              { mint: holding.tokenAddress },
+              { encoding: 'jsonParsed' }
+            ]);
+            const tokenAcc = accs?.value?.[0];
+            const tokenAmount = tokenAcc?.account?.data?.parsed?.info?.tokenAmount?.uiAmount ?? 0;
+            if (tokenAmount > 1e-6) {
+              holding.amount = tokenAmount;
+            } else {
+              user.tokenHoldings.delete(key);
+            }
+          } catch {}
+        }
+      }
+      saveUserStore();
+    } catch (err: any) {
+      console.warn(`[SyncHoldings] Solana token sync error:`, err?.message);
+    }
+    return;
+  }
+
   if (targetChain !== 'sui') return;
 
   const targetWallets = getUserWallets(user, targetChain);
@@ -389,7 +591,7 @@ export function recordUserTransaction(user: UserState, tx: {
   amountToken: number;
   gasFeeNative?: number;
   txHash: string;
-  status?: 'SUCCESS' | 'FAILED';
+  status?: 'SUCCESS' | 'FAILED' | 'PENDING';
   isRealOnChain?: boolean;
 }): void {
   if (!user.transactions) {
@@ -402,6 +604,7 @@ export function recordUserTransaction(user: UserState, tx: {
     ethereum: 0.0015,
     base: 0.00003,
     robinhood: 0.00002,
+    arc: 0.001,
     ton: 0.005,
     aptos: 0.0008,
     sei: 0.001,
@@ -514,3 +717,31 @@ export function verifyMcpAuth(userIdOrToken: number | string, tokenOrUndefined?:
 
   return { valid: false, error: 'MCP Token 校验失败，鉴权拒绝' };
 }
+
+/**
+ * 内部特邀开放的用户 ID (默认内部测试用户 7031963354)
+ */
+export const MCP_ALLOWED_USER_ID = 7031963354;
+
+/**
+ * 检查用户是否有权限使用 MCP 智能体功能
+ * 支持环境变量 MCP_ALLOWED_USERS 配置白名单 (逗号分隔的 Telegram 用户 ID)
+ */
+export function isMcpUserAllowed(userId: number | string | undefined | null): boolean {
+  if (!userId) return false;
+  const idNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+  if (isNaN(idNum)) return false;
+
+  if (idNum === MCP_ALLOWED_USER_ID) return true;
+
+  const envAllowed = process.env.MCP_ALLOWED_USERS;
+  if (envAllowed) {
+    if (envAllowed.trim() === '*') return true;
+    const list = envAllowed.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+    if (list.includes(idNum)) return true;
+  }
+
+  return false;
+}
+
+

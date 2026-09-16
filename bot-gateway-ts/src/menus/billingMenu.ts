@@ -16,7 +16,7 @@ export interface UserTransactionRecord {
   gasFeeNative: number;
   txHash: string;
   timestamp: number;
-  status: 'SUCCESS' | 'FAILED';
+  status: 'SUCCESS' | 'FAILED' | 'PENDING';
   isRealOnChain?: boolean;
 }
 
@@ -27,6 +27,7 @@ export class BillingMenu {
     if (c === 'ethereum') return `https://etherscan.io/tx/${txHash}`;
     if (c === 'base') return `https://basescan.org/tx/${txHash}`;
     if (c === 'robinhood') return `https://explorer.robinhood.com/tx/${txHash}`;
+    if (c === 'arc') return `https://arc-scan.org/tx/${txHash}`;
     if (c === 'sui') return `https://suiscan.xyz/mainnet/tx/${txHash}`;
     if (c === 'ton') return `https://tonviewer.com/transaction/${txHash}`;
     if (c === 'aptos') return `https://explorer.aptoslabs.com/txn/${txHash}?network=mainnet`;
@@ -41,6 +42,7 @@ export class BillingMenu {
     if (c === 'ethereum') return `https://etherscan.io/address/${address}`;
     if (c === 'base') return `https://basescan.org/address/${address}`;
     if (c === 'robinhood') return `https://explorer.robinhood.com/address/${address}`;
+    if (c === 'arc') return `https://arc-scan.org/address/${address}`;
     if (c === 'sui') return `https://suiscan.xyz/mainnet/account/${address}`;
     if (c === 'ton') return `https://tonviewer.com/${address}`;
     if (c === 'aptos') return `https://explorer.aptoslabs.com/account/${address}?network=mainnet`;
@@ -89,6 +91,11 @@ export class BillingMenu {
         const shortHash = tx.txHash.length > 16 ? `${tx.txHash.slice(0, 8)}...${tx.txHash.slice(-6)}` : tx.txHash;
 
         text += `${i + 1}. ${typeIcon} <b>[${typeLabel}] ${tx.tokenSymbol}</b>\n`;
+        if (tx.status !== 'SUCCESS') {
+          text += `<code>${tx.status}</code>\n`;
+          if (tx.txHash) text += `<a href="${txUrl}">${shortHash}</a>\n\n`;
+          return;
+        }
         if (tx.type === 'BUY') {
           text += `💸 ${I18nService.t('billing.spent', lang)}: <code>${tx.amountNative.toFixed(4)} ${nativeSymbol}</code> ｜ 📈 ${I18nService.t('billing.got', lang)}: <code>${tx.amountToken.toLocaleString('en-US', { maximumFractionDigits: 4 })} ${tx.tokenSymbol}</code>\n`;
         } else if (tx.type === 'SELL') {

@@ -2,7 +2,7 @@ import http from 'http';
 import { URL } from 'url';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createWhiteCatMcpServer } from './mcpServer.js';
-import { verifyMcpAuth } from '../services/userService.js';
+import { verifyMcpAuth, isMcpUserAllowed } from '../services/userService.js';
 
 export interface SseServerConfig {
   port?: number;
@@ -13,23 +13,56 @@ export interface SseServerConfig {
 export class WhiteCatSseServer {
   private server: http.Server | null = null;
   private transports: Map<string, SSEServerTransport> = new Map();
+  private sessionUsers = new Map<string, number>();
   private port: number;
   private host: string;
 
   constructor(config: SseServerConfig = {}) {
-    this.port = config.port || (process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088);
+    this.port = config.port !== undefined ? config.port : (process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088);
     this.host = config.host || process.env.MCP_HOST || '0.0.0.0';
   }
 
   public start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.server = http.createServer(async (req, res) => {
-        // 设置跨域头部支持 Web 客户端与各类外部工具
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        // 设置跨域头部支持 Web 客户端与各类外部工具 (BUG-024 限制受信任 Origins)
+        const origin = req.headers.origin;
+        const allowedOriginsEnv = process.env.MCP_ALLOWED_ORIGINS;
+        let isOriginAllowed = false;
+
+        if (!origin) {
+          // 非浏览器环境 (无 Origin 标头) 始终允许
+          isOriginAllowed = true;
+        } else {
+          try {
+            const parsedOrigin = new URL(origin);
+            if (['localhost', '127.0.0.1'].includes(parsedOrigin.hostname)) {
+              isOriginAllowed = true;
+            }
+          } catch {}
+
+          if (!isOriginAllowed && allowedOriginsEnv) {
+            const allowedList = allowedOriginsEnv.split(',').map(s => s.trim().toLowerCase());
+            if (allowedList.includes(origin.toLowerCase()) || allowedList.includes('*')) {
+              isOriginAllowed = true;
+            }
+          }
+        }
+
+        if (origin && isOriginAllowed) {
+          res.setHeader('Access-Control-Allow-Origin', origin);
+          res.setHeader('Access-Control-Allow-Credentials', 'true');
+          res.setHeader('Vary', 'Origin');
+        }
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-whitecat-user-id, x-whitecat-token');
 
         if (req.method === 'OPTIONS') {
+          if (origin && !isOriginAllowed) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('Forbidden: Origin not allowed by CORS policy');
+            return;
+          }
           res.writeHead(204);
           res.end();
           return;
@@ -72,27 +105,34 @@ export class WhiteCatSseServer {
           const userParam = reqUrl.searchParams.get('user') || (req.headers['x-whitecat-user-id'] as string);
           const userId = userParam ? parseInt(userParam, 10) : undefined;
 
-          // 校验鉴权凭证
-          if (token || userId) {
-            const auth = verifyMcpAuth(userId || token || '', token);
-            if (!auth.valid) {
-              res.writeHead(401, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: auth.error || 'MCP 认证失败，请检查 Token 或 User ID' }));
-              return;
-            }
+          const auth = token ? (userId !== undefined ? verifyMcpAuth(userId, token) : verifyMcpAuth(token)) : { valid: false, user: undefined };
+          if (!auth.valid || !auth.user) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Valid MCP credentials are required' }));
+            return;
+          }
+
+          if (!isMcpUserAllowed(auth.user.userId)) {
+            res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+              error: 'MCP 智能体功能内测中，目前只对内部受邀用户开放。请联系作者 https://t.me/oxbaimao 开启测试'
+            }));
+            return;
           }
 
           try {
             const mcpInstance = createWhiteCatMcpServer({
-              defaultUserId: userId,
+              defaultUserId: auth.user.userId,
               defaultToken: token
             });
 
             const transport = new SSEServerTransport('/message', res);
             this.transports.set(transport.sessionId, transport);
+            this.sessionUsers.set(transport.sessionId, auth.user.userId);
 
             transport.onclose = () => {
               this.transports.delete(transport.sessionId);
+              this.sessionUsers.delete(transport.sessionId);
               console.log(`[MCP SSE] Session closed: ${transport.sessionId} (Active: ${this.transports.size})`);
             };
 
@@ -117,6 +157,14 @@ export class WhiteCatSseServer {
             return;
           }
 
+          const bearer = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7).trim() : undefined;
+          const token = bearer || req.headers['x-whitecat-token'] as string || reqUrl.searchParams.get('token');
+          const auth = token ? verifyMcpAuth(token) : { valid: false, user: undefined };
+          if (!auth.valid || !auth.user || auth.user.userId !== this.sessionUsers.get(sessionId)) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Session credentials are required' }));
+            return;
+          }
           const transport = this.transports.get(sessionId);
           if (!transport) {
             res.writeHead(404, { 'Content-Type': 'application/json' });

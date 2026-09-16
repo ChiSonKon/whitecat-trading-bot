@@ -12,6 +12,8 @@ export interface WalletEntry {
   privateKey?: string;
   encryptedPrivateKey?: string;
   nonceIv?: string;
+  name?: string;
+  label?: string;
 }
 
 export class WalletMenu {
@@ -27,16 +29,17 @@ export class WalletMenu {
     }
 
     const balStr = activeWallet.balance !== undefined ? activeWallet.balance : 0;
+    const displayName = activeWallet.name || activeWallet.label || `Wallet_${activeWallet.index + 1}`;
     return (
       `${currentChainLine}\n\n` +
-      `Wallet_${activeWallet.index + 1}: ${balStr} ${nativeSymbol} \n` +
+      `${displayName}: ${balStr} ${nativeSymbol} \n` +
       `<code>${activeWallet.address}</code>`
     );
   }
 
   public static renderKeyboard(wallets: WalletEntry[], lang: string = 'en', chain: string = 'bsc'): InlineKeyboard {
     const activeWallet = wallets.find(w => w.isDefault) || wallets[0] || { index: 0 };
-    const wName = `Wallet_${activeWallet.index + 1}`;
+    const wName = activeWallet.name || activeWallet.label || `Wallet_${activeWallet.index + 1}`;
     const nativeSymbol = MainMenu.getChainNativeSymbol(chain);
 
     const kb = new InlineKeyboard();

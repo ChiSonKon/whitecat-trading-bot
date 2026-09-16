@@ -10,6 +10,8 @@ export class ChainMenu {
     const kb = new InlineKeyboard()
       .text('Robinhood', 'switch_chain_robinhood')
       .row()
+      .text('Arc Network', 'switch_chain_arc')
+      .row()
       .text('BSC', 'switch_chain_bsc')
       .row()
       .text('Sui', 'switch_chain_sui')

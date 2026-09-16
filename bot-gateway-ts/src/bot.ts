@@ -1,6 +1,11 @@
 import { I18nService } from './services/i18nService.js';
 import { Bot, GrammyError, HttpError, InlineKeyboard, InputFile } from 'grammy';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { ethers } from 'ethers';
+import bs58 from 'bs58';
+import { Keypair as SolKeypair } from '@solana/web3.js';
+import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import fs from 'fs';
 import path from 'path';
 import { CONFIG } from './config.js';
@@ -25,6 +30,8 @@ import { BillingMenu, UserTransactionRecord } from './menus/billingMenu.js';
 import { SnipeMenu } from './menus/snipeMenu.js';
 import { McpMenu } from './menus/mcpMenu.js';
 import { RadarMenu } from './menus/radarMenu.js';
+import { ArcGuideMenu } from './menus/arcGuideMenu.js';
+import { ChainEcosystemMenu } from './menus/chainEcosystemMenu.js';
 import { MemeRadarService } from './services/memeRadarService.js';
 import { WhiteCatSseServer } from './mcp/sseServer.js';
 import {
@@ -41,7 +48,8 @@ import {
   recordUserTransaction,
   processTradeReferralAndFee,
   regenerateMcpToken,
-  toggleMcpAutoTrade
+  toggleMcpAutoTrade,
+  isMcpUserAllowed
 } from './services/userService.js';
 
 console.log('🤖 正在启动白猫打狗机器人 (WhiteCat Trading Bot Gateway)...');
@@ -77,53 +85,10 @@ async function createWalletForUser(user: UserState, chain: string): Promise<Wall
   const symbol = MainMenu.getChainNativeSymbol(targetChain);
   const newIndex = currentWallets.length;
 
-  const randomHex = (len: number) => {
-    let s = '';
-    const hexChars = '0123456789abcdef';
-    for (let i = 0; i < len; i++) {
-      s += hexChars[Math.floor(Math.random() * 16)];
-    }
-    return s;
-  };
-
-  let newAddress = '';
-  let privateKey = '';
-
-  // 各链专属原生地址与私钥格式定义
-  if (targetChain === 'solana') {
-    newAddress = '';
-    privateKey = '';
-  } else if (targetChain === 'sui') {
-    try {
-      const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
-      const kp = new Ed25519Keypair();
-      newAddress = kp.toSuiAddress();
-      privateKey = kp.getSecretKey();
-    } catch {
-      newAddress = `0x${randomHex(64)}`;
-      privateKey = `suiprivkey1${randomHex(58)}`;
-    }
-  } else if (targetChain === 'ton') {
-    newAddress = `UQ${randomHex(46)}`;
-    privateKey = `0x${randomHex(64)}`;
-  } else if (targetChain === 'aptos') {
-    newAddress = `0x${randomHex(64)}`;
-    privateKey = `0x${randomHex(64)}`;
-  } else {
-    // EVM: robinhood, bsc, base, ethereum, xlayer, sei
-    newAddress = `0x${randomHex(40)}`;
-    privateKey = `0x${randomHex(64)}`;
-  }
-
-  try {
-    const gen = await BackendClient.generateWallet(targetChain);
-    if (gen && gen.address && gen.private_key) {
-      newAddress = gen.address;
-      privateKey = gen.private_key;
-    }
-  } catch (err: any) {
-    console.error(`[Wallet] Backend generation fallback for ${targetChain}:`, err?.message);
-  }
+  const gen = await BackendClient.generateWallet(targetChain);
+  if (!gen?.address || !gen?.private_key) throw new Error('Wallet generation failed');
+  const newAddress = gen.address;
+  const privateKey = gen.private_key;
 
   const newEntry: WalletEntry = {
     index: newIndex,
@@ -135,11 +100,11 @@ async function createWalletForUser(user: UserState, chain: string): Promise<Wall
   };
   currentWallets.push(newEntry);
   saveUserStore();
-  console.log(`[Wallet] Created ${targetChain} wallet: ${newAddress} (length: ${newAddress.length}, PK: ${privateKey.slice(0, 14)}...)`);
+  console.log(`[Wallet] Created ${targetChain} wallet: ${newAddress} (length: ${newAddress.length})`);
   return newEntry;
 }
 
-const proxyUri = process.env.SOCKS_PROXY || 'socks5h://127.0.0.1:1080';
+const proxyUri = process.env.SOCKS_PROXY && process.env.SOCKS_PROXY !== 'none' ? process.env.SOCKS_PROXY : undefined;
 const bot = new Bot(CONFIG.BOT_TOKEN, {
   client: {
     baseFetchConfig: {
@@ -147,6 +112,8 @@ const bot = new Bot(CONFIG.BOT_TOKEN, {
     }
   }
 });
+
+const keyExportRequests = new Map<number, { nonce: string; address: string; chain: string; expires: number }>();
 
 function renderOnboardingLangView() {
   const text =
@@ -166,7 +133,8 @@ function renderOnboardingChainView(lang: string = 'en') {
 
 // 1. /start 指令 (新用户弹出语言与链选择，老用户直达主菜单)
 bot.command(['start', 'setup', 'menu'], async ctx => {
-  const userId = ctx.from?.id || 10001;
+  if (!ctx.from?.id) return;
+  const userId = ctx.from.id;
   const username = ctx.from?.username || 'trader';
   const user = getOrCreateUser(userId, username);
   console.log(`[Start] Received /start from user ${userId} (@${username}), onboarded: ${user.onboarded}`);
@@ -240,18 +208,24 @@ bot.command(['start', 'setup', 'menu'], async ctx => {
       });
     }
 
-    // 同步钱包余额并直接展示该代币交易面板
+    // 同步钱包余额与代币真实持仓并展示该代币交易面板
     await syncWalletBalances(user, targetChain);
-    const currentWallets = getUserWallets(user);
+    await syncTokenHoldings(user, targetChain, resolvedTokenAddress);
+    const currentWallets = getUserWallets(user, targetChain);
+    const holdingObj = user.tokenHoldings.get(resolvedTokenAddress.toLowerCase());
+    const userHolding = holdingObj ? holdingObj.amount : 0;
+    const userHoldingNative = holdingObj ? holdingObj.costNative : 0;
+    const boughtNative = holdingObj?.totalBoughtNative ?? userHoldingNative;
+    const soldNative = holdingObj?.totalSoldNative ?? 0;
     const { text: panelText, keyboard } = await TokenDetector.analyzeAndBuildView(
       targetChain,
       resolvedTokenAddress,
       currentWallets,
       user.lang,
-      0,
-      0,
-      0,
-      0,
+      userHolding,
+      userHoldingNative,
+      boughtNative,
+      soldNative,
       userId,
       botUser
     );
@@ -262,11 +236,21 @@ bot.command(['start', 'setup', 'menu'], async ctx => {
     });
   }
 
-  // 2. 普通好友邀请注册深度链接 (/start ref_{inviterId})
-  if (startPayload.startsWith('ref_') && !user.inviterId) {
-    const inviterIdStr = startPayload.replace('ref_', '');
-    const inviterId = parseInt(inviterIdStr, 10);
-    if (!isNaN(inviterId) && inviterId !== userId) {
+  // 2. 好友邀请注册深度链接 (/start ref_{inviterId} 或 /start {referralCode} BUG-025)
+  if (startPayload && !user.inviterId) {
+    let inviterId: number | undefined;
+    if (startPayload.startsWith('ref_')) {
+      const parsed = parseInt(startPayload.replace('ref_', ''), 10);
+      if (!isNaN(parsed) && parsed !== userId) inviterId = parsed;
+    } else {
+      for (const [uid, u] of userStore.entries()) {
+        if (u.referralCode && u.referralCode.toUpperCase() === startPayload.toUpperCase() && uid !== userId) {
+          inviterId = uid;
+          break;
+        }
+      }
+    }
+    if (inviterId && inviterId !== userId) {
       user.inviterId = inviterId;
       const inviter = userStore.get(inviterId);
       if (inviter) {
@@ -301,19 +285,50 @@ bot.command(['start', 'setup', 'menu'], async ctx => {
   });
 
   await ctx.reply(MainMenu.renderText(user.activeChain, wallets, user.lang), {
-    reply_markup: MainMenu.renderKeyboard(wallets, user.lang),
+    reply_markup: MainMenu.renderKeyboard(wallets, user.lang, user.activeChain),
     parse_mode: 'HTML'
   });
 });
 
-// 2. /faucet 或 /deposit 指令: 充值测试代币 (支持多链)
+// 2. /faucet 或 /deposit 指令: 充值测试代币 (支持多链，增加白名单与频率限制 BUG-021)
+const faucetRateLimitMap = new Map<number, number>();
+
 bot.command(['faucet', 'deposit'], async ctx => {
-  const userId = ctx.from?.id || 10001;
+  if (!ctx.from?.id) return;
+  const userId = ctx.from.id;
   const user = getOrCreateUser(userId, ctx.from?.username);
-  
+  const isZh = user.lang === 'zh-hans' || user.lang === 'zh-hant';
+
+  // 1. 权限校验: 白名单检查 (环境变量 FAUCET_WHITELIST_USERS 或 ADMIN_USER_IDS)
+  const whitelistEnv = process.env.FAUCET_WHITELIST_USERS || process.env.ADMIN_USER_IDS || '';
+  const whitelist = whitelistEnv.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  if (!isDev && !whitelist.includes(userId)) {
+    return ctx.reply(
+      isZh
+        ? '⚠️ <b>水龙头已关闭</b>\n\n水龙头充值功能仅限测试白名单管理员使用。'
+        : '⚠️ <b>Faucet Access Denied</b>\n\nFaucet command is restricted to authorized test administrators.',
+      { parse_mode: 'HTML' }
+    );
+  }
+
+  // 2. 速率限制: 每用户 60 秒限领一次
+  const now = Date.now();
+  const lastClaim = faucetRateLimitMap.get(userId) || 0;
+  if (now - lastClaim < 60000) {
+    const remainingSec = Math.ceil((60000 - (now - lastClaim)) / 1000);
+    return ctx.reply(
+      isZh
+        ? `⏳ 领取过于频繁，请等待 ${remainingSec} 秒后再试。`
+        : `⏳ Rate limit reached. Please wait ${remainingSec}s before claiming again.`,
+      { parse_mode: 'HTML' }
+    );
+  }
+
   const rawArgs = ctx.match?.trim() || '';
   const parts = rawArgs.split(/\s+/);
-  let depositAmt = 1.0;
+  let depositAmt = 0.5;
   let targetChain = user.activeChain;
 
   if (parts.length > 0 && parts[0] && !isNaN(parseFloat(parts[0]))) {
@@ -323,6 +338,14 @@ bot.command(['faucet', 'deposit'], async ctx => {
     }
   }
 
+  // 3. 单次最大领水量严格限制 (0.001 ~ 1.0)
+  if (isNaN(depositAmt) || depositAmt <= 0) {
+    depositAmt = 0.1;
+  } else if (depositAmt > 1.0) {
+    depositAmt = 1.0;
+  }
+
+  faucetRateLimitMap.set(userId, now);
   console.log(`[Faucet] Received /faucet from user ${userId}: ${depositAmt} on ${targetChain}`);
 
   const symbol = MainMenu.getChainNativeSymbol(targetChain);
@@ -334,13 +357,25 @@ bot.command(['faucet', 'deposit'], async ctx => {
 
   const activeWallet = wallets.find(w => w.isDefault) || wallets[0];
   activeWallet.balance = (activeWallet.balance || 0) + depositAmt;
+  saveUserStore();
 
   return ctx.reply(I18nService.t('msg.faucetSuccess', user.lang, { address: activeWallet.address, chain: MainMenu.getChainDisplayName(targetChain), amt: depositAmt, symbol: symbol, bal: activeWallet.balance }), { parse_mode: 'HTML' });
 });
 
+// 2.5 /lang 或 /language 指令: 切换语言
+bot.command(['lang', 'language'], async ctx => {
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  return ctx.reply(LangMenu.renderText(user.lang), {
+    reply_markup: LangMenu.renderKeyboard(user.lang),
+    parse_mode: 'HTML'
+  });
+});
+
 // 3. /switch_chain 指令: 切换链
 bot.command('switch_chain', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   return ctx.reply(ChainMenu.renderText(user.lang), {
     reply_markup: ChainMenu.renderKeyboard(user.lang),
     parse_mode: 'HTML'
@@ -349,8 +384,10 @@ bot.command('switch_chain', async ctx => {
 
 // 4. /asset 指令: 查看代币持仓
 bot.command('asset', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   await syncWalletBalances(user, user.activeChain);
+  await syncTokenHoldings(user, user.activeChain);
   const holdings: TokenHoldingItem[] = [];
   user.tokenHoldings.forEach((holding) => {
     if (holding && holding.amount > 1e-4) {
@@ -379,7 +416,8 @@ bot.command('asset', async ctx => {
 
 // 5. /buy_sell 指令: 买/卖代币
 bot.command('buy_sell', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   user.pendingAction = { type: 'query_ca' };
   return ctx.reply(
     `<b>💰 ${I18nService.getCommandDesc('buy_sell', user.lang)}</b>\n\n` +
@@ -390,9 +428,10 @@ bot.command('buy_sell', async ctx => {
 
 // 6. /limit_order 指令: 查看挂单
 bot.command('limit_order', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
-  return ctx.reply(LimitOrderMenu.renderText(activeWallet, user.limitOrders, user.lang), {
+  return ctx.reply(LimitOrderMenu.renderText(activeWallet, user.limitOrders, user.lang, user.activeChain), {
     reply_markup: LimitOrderMenu.renderKeyboard(user.lang),
     parse_mode: 'HTML'
   });
@@ -400,7 +439,8 @@ bot.command('limit_order', async ctx => {
 
 // 7. /copy_trade 指令: 查看跟单设置
 bot.command('copy_trade', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
   return ctx.reply(CopyTradeMenu.renderText(activeWallet, user.monitoredWallets.length, user.lang), {
     reply_markup: CopyTradeMenu.renderKeyboard(user.lang),
@@ -410,7 +450,8 @@ bot.command('copy_trade', async ctx => {
 
 // 8. /sniper 指令: 代币开盘狙击
 bot.command('sniper', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   return ctx.reply(SnipeMenu.renderText(user.lang), {
     reply_markup: SnipeMenu.renderKeyboard(user.lang),
     parse_mode: 'HTML'
@@ -419,7 +460,8 @@ bot.command('sniper', async ctx => {
 
 // 9. /billing 指令: 查看历史交易&狙击记录
 bot.command('billing', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   const activeWallet = getUserWallets(user, user.activeChain).find(w => w.isDefault) || getUserWallets(user, user.activeChain)[0];
   return ctx.reply(BillingMenu.renderText(user.activeChain, activeWallet, user.transactions, user.lang), {
     reply_markup: BillingMenu.renderKeyboard(user.activeChain, activeWallet, user.lang),
@@ -429,7 +471,8 @@ bot.command('billing', async ctx => {
 
 // 10. /wallet_setting 指令: 钱包设置
 bot.command('wallet_setting', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   await syncWalletBalances(user, user.activeChain);
   const wallets = getUserWallets(user, user.activeChain);
   return ctx.reply(WalletMenu.renderText(user.activeChain, wallets, user.lang), {
@@ -440,7 +483,8 @@ bot.command('wallet_setting', async ctx => {
 
 // 11. /trade_setting 指令: 全局交易设置
 bot.command('trade_setting', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   return ctx.reply(SettingsMenu.renderText(user.activeChain, user.tradeConfig, user.lang), {
     reply_markup: SettingsMenu.renderKeyboard(user.activeChain, user.tradeConfig, user.lang),
     parse_mode: 'HTML'
@@ -449,7 +493,8 @@ bot.command('trade_setting', async ctx => {
 
 // 12. /referral 指令: 查看邀请信息和奖励
 bot.command('referral', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   return ctx.reply(ReferralMenu.renderText(user.userId, user.activeChain, user, user.lang), {
     reply_markup: ReferralMenu.renderKeyboard(user.lang),
     parse_mode: 'HTML'
@@ -458,7 +503,8 @@ bot.command('referral', async ctx => {
 
 // 13. /mini_futures 指令: 迷你合约交易
 bot.command('mini_futures', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   const kb = new InlineKeyboard()
     .url(I18nService.btnDevTechSupport(user.lang), 'https://t.me/biqrxnxiYW/667')
     .row()
@@ -474,9 +520,17 @@ bot.command('mini_futures', async ctx => {
   );
 });
 
-// 14. /mcp 指令: MCP 智能体接入与接口配置
+// 14. /mcp 指令: MCP 智能体接入与接口配置 (内部特邀用户受限访问)
 bot.command('mcp', async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  if (!isMcpUserAllowed(user.userId)) {
+    return ctx.reply(McpMenu.renderAccessRestrictedText(user.lang), {
+      reply_markup: McpMenu.renderAccessRestrictedKeyboard(user.lang),
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
+    });
+  }
   const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
   return ctx.reply(McpMenu.renderText(user, mcpPort, user.lang), {
     reply_markup: McpMenu.renderKeyboard(user, user.lang),
@@ -486,10 +540,51 @@ bot.command('mcp', async ctx => {
 
 // 15. /radar 或 /hot 指令: Meme 爆点雷达实时候选榜
 bot.command(['radar', 'hot'], async ctx => {
-  const user = getOrCreateUser(ctx.from?.id || 10001, ctx.from?.username);
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
   const candidates = await MemeRadarService.scanRadarTokens(user.activeChain, { limit: 6 });
   return ctx.reply(RadarMenu.renderText(user.activeChain, candidates, user.lang), {
     reply_markup: RadarMenu.renderKeyboard(user.activeChain, candidates, user.lang),
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true }
+  });
+});
+
+// 16. /arc 或 /arc_guide 指令: ARC 生态与跨链指引
+bot.command(['arc', 'arc_guide'], async ctx => {
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  return ctx.reply(ArcGuideMenu.renderText(user.lang), {
+    reply_markup: ArcGuideMenu.renderKeyboard(user.lang),
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true }
+  });
+});
+
+// 17. /guide, /ecosystem, /sol, /bsc, /base, /sui, /ton 指令: 全网主流公链内盘与节点生态指引
+bot.command(['guide', 'ecosystem', 'chain_guide', 'sol', 'solana', 'bsc', 'base', 'sui', 'ton'], async ctx => {
+  if (!ctx.from?.id) return;
+  const user = getOrCreateUser(ctx.from.id, ctx.from.username);
+  const rawText = ctx.message?.text?.trim() || '';
+  const cmd = rawText.split(' ')[0]?.replace('/', '')?.toLowerCase() || '';
+
+  let targetChain = user.activeChain;
+  if (['sol', 'solana'].includes(cmd)) targetChain = 'solana';
+  else if (cmd === 'bsc') targetChain = 'bsc';
+  else if (cmd === 'base') targetChain = 'base';
+  else if (cmd === 'sui') targetChain = 'sui';
+  else if (cmd === 'ton') targetChain = 'ton';
+
+  if (targetChain.toLowerCase() === 'arc') {
+    return ctx.reply(ArcGuideMenu.renderText(user.lang), {
+      reply_markup: ArcGuideMenu.renderKeyboard(user.lang),
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
+    });
+  }
+
+  return ctx.reply(ChainEcosystemMenu.renderText(targetChain, user.lang), {
+    reply_markup: ChainEcosystemMenu.renderKeyboard(targetChain, user.lang),
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true }
   });
@@ -513,8 +608,13 @@ bot.on('callback_query:data', async ctx => {
     saveUserStore();
     await ctx.answerCallbackQuery();
 
+    // 同步下发新语言对应的底部常驻键盘与占位符
+    await ctx.reply(I18nService.getDockPlaceholder(user.lang), {
+      reply_markup: MainMenu.getBottomKeyboard(user.lang)
+    });
+
     const { text, keyboard } = renderOnboardingChainView(selectedLang);
-    return ctx.editMessageText(text, {
+    return ctx.reply(text, {
       reply_markup: keyboard,
       parse_mode: 'HTML'
     });
@@ -545,15 +645,6 @@ bot.on('callback_query:data', async ctx => {
     user.activeChain = targetChain;
     user.onboarded = true;
 
-    // 如果该链尚未生成钱包，立即为用户生成首个原生钱包
-    let currentWallets = getUserWallets(user, targetChain);
-    if (currentWallets.length === 0) {
-      await createWalletForUser(user, targetChain);
-      currentWallets = getUserWallets(user, targetChain);
-    }
-    await syncWalletBalances(user, targetChain);
-    saveUserStore();
-
     const chainName = MainMenu.getChainDisplayName(targetChain);
     const toast = user.lang === 'zh-hans' || user.lang === 'zh-hant'
       ? `🎉 已切换至 ${chainName}`
@@ -563,9 +654,25 @@ bot.on('callback_query:data', async ctx => {
       ? `🎉 Переключено на ${chainName}`
       : `🎉 Switched to ${chainName}`;
 
-    await ctx.answerCallbackQuery({ text: toast });
-    return ctx.editMessageText(MainMenu.renderText(targetChain, currentWallets, user.lang), {
-      reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang),
+    // 优先即时应答 Telegram 回调，消除前端按钮转圈等待
+    await ctx.answerCallbackQuery({ text: toast }).catch(() => {});
+
+    // 如果该链尚未生成钱包，立即为用户生成首个原生钱包
+    let currentWallets = getUserWallets(user, targetChain);
+    if (currentWallets.length === 0) {
+      await createWalletForUser(user, targetChain);
+      currentWallets = getUserWallets(user, targetChain);
+    }
+    await syncWalletBalances(user, targetChain);
+    saveUserStore();
+
+    // 确保底部常驻快捷键盘同步更新并设定占位符
+    await ctx.reply(I18nService.getDockPlaceholder(user.lang), {
+      reply_markup: MainMenu.getBottomKeyboard(user.lang)
+    });
+
+    return ctx.reply(MainMenu.renderText(targetChain, currentWallets, user.lang), {
+      reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang, targetChain),
       parse_mode: 'HTML'
     });
   }
@@ -582,6 +689,11 @@ bot.on('callback_query:data', async ctx => {
       user.onboarded = true;
       saveUserStore();
 
+      // 优先即时应答 Telegram 回调
+      await ctx.answerCallbackQuery({
+        text: `✅ ${MainMenu.getChainDisplayName(targetChain)}`
+      }).catch(() => {});
+
       let targetWallets = getUserWallets(user, targetChain);
       if (targetWallets.length === 0) {
         await createWalletForUser(user, targetChain);
@@ -590,20 +702,26 @@ bot.on('callback_query:data', async ctx => {
       await syncWalletBalances(user, targetChain);
 
       const resolvedAddress = TokenKeyHelper.toAddress(tokenKey);
+      await syncTokenHoldings(user, targetChain, resolvedAddress);
+      const holding = user.tokenHoldings.get(resolvedAddress.toLowerCase()) || user.tokenHoldings.get(resolvedAddress);
+      const userHolding = holding ? holding.amount : 0;
+      const userHoldingNative = holding ? (holding.costNative || 0) : 0;
+      const boughtNative = holding ? (holding.totalBoughtNative || 0) : 0;
+      const soldNative = holding ? (holding.totalSoldNative || 0) : 0;
+
       const botUser = bot.botInfo?.username || 'whitecat_doge_yr3ybv_bot';
       const { text: panelText, keyboard } = await TokenDetector.analyzeAndBuildView(
         targetChain,
         resolvedAddress,
         targetWallets,
         user.lang,
-        0, 0, 0, 0,
+        userHolding,
+        userHoldingNative,
+        boughtNative,
+        soldNative,
         userId,
         botUser
       );
-
-      await ctx.answerCallbackQuery({
-        text: `✅ ${MainMenu.getChainDisplayName(targetChain)}`
-      });
 
       try {
         return ctx.editMessageText(panelText, {
@@ -640,10 +758,17 @@ bot.on('callback_query:data', async ctx => {
     await ctx.reply(I18nService.getDockPlaceholder(user.lang), {
       reply_markup: MainMenu.getBottomKeyboard(user.lang)
     });
-    return ctx.editMessageText(MainMenu.renderText(user.activeChain, currentWallets, user.lang), {
-      reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang),
-      parse_mode: 'HTML'
-    });
+    try {
+      return await ctx.editMessageText(MainMenu.renderText(user.activeChain, currentWallets, user.lang), {
+        reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang, user.activeChain),
+        parse_mode: 'HTML'
+      });
+    } catch {
+      return await ctx.reply(MainMenu.renderText(user.activeChain, currentWallets, user.lang), {
+        reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang, user.activeChain),
+        parse_mode: 'HTML'
+      });
+    }
   }
 
   // E. 创建新钱包
@@ -660,37 +785,73 @@ bot.on('callback_query:data', async ctx => {
     const successText = I18nService.t('msg.walletCreatedDetail', user.lang, { address: newEntry.address, chain: chainName, count: currentWallets.length });
 
     return ctx.editMessageText(successText, {
-      reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang),
+      reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang, user.activeChain),
       parse_mode: 'HTML'
     });
   }
 
-  // F. 导入钱包
+  // F. 导入钱包 (BUG-022)
   if (data === 'import_wallet') {
     await ctx.answerCallbackQuery();
+    const isZh = user.lang === 'zh-hans' || user.lang === 'zh-hant';
+    if (ctx.chat?.type !== 'private') {
+      return ctx.reply(
+        isZh
+          ? '⚠️ <b>安全警告</b>: 为防私钥在群聊泄露，导入私钥仅支持在与 Bot 的私聊中进行。'
+          : '⚠️ <b>Security Alert</b>: Private key import is only supported in a private chat with the Bot.',
+        { parse_mode: 'HTML' }
+      );
+    }
+    user.pendingAction = {
+      type: 'import_wallet',
+      data: { chain: user.activeChain },
+      createdAt: Date.now()
+    };
+    saveUserStore();
     return ctx.reply(
-      I18nService.t('msg.importWalletHint', user.lang)
+      I18nService.t('msg.importWalletHint', user.lang) ||
+      (isZh
+        ? `🔑 <b>导入私钥</b>\n\n当前目标公链: <b>${MainMenu.getChainDisplayName(user.activeChain)}</b>\n\n请直接回复待导入的私钥（支持 64位十六进制 EVM 私钥、Solana Base58 私钥或 Sui 私钥）。\n\n<i>🛡️ 安全防护：Bot 读取后会尝试立即删除您发送的私钥消息。</i>`
+        : `🔑 <b>Import Private Key</b>\n\nTarget Chain: <b>${MainMenu.getChainDisplayName(user.activeChain)}</b>\n\nPlease reply with the private key (supports 64-char EVM hex, Solana Base58, or Sui private key).\n\n<i>🛡️ The message will be purged automatically for safety.</i>`),
+      { parse_mode: 'HTML' }
     );
   }
 
   // G. 刷新主页 / 返回
   if (data === 'menu_main' || data === 'menu_close' || data === 'close') {
+    await ctx.answerCallbackQuery().catch(() => {});
     await syncWalletBalances(user, user.activeChain);
-    await ctx.answerCallbackQuery();
     const currentWallets = getUserWallets(user);
     return ctx.editMessageText(MainMenu.renderText(user.activeChain, currentWallets, user.lang), {
-      reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang),
+      reply_markup: MainMenu.renderKeyboard(currentWallets, user.lang, user.activeChain),
       parse_mode: 'HTML'
     });
   }
 
-  // G.1 🤖 MCP 智能体接入面板
+  // G.1 🤖 MCP 智能体接入面板 (内部特邀用户权限限制)
   if (data === 'menu_mcp') {
     await ctx.answerCallbackQuery();
+    if (!isMcpUserAllowed(user.userId)) {
+      return ctx.editMessageText(McpMenu.renderAccessRestrictedText(user.lang), {
+        reply_markup: McpMenu.renderAccessRestrictedKeyboard(user.lang),
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true }
+      });
+    }
     const mcpPort = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 38088;
     return ctx.editMessageText(McpMenu.renderText(user, mcpPort, user.lang), {
       reply_markup: McpMenu.renderKeyboard(user, user.lang),
       parse_mode: 'HTML'
+    });
+  }
+
+  // 内部特邀权限安全拦截：非授权用户禁止操作任何 MCP 衍生子功能
+  if (data.startsWith('mcp_') && !isMcpUserAllowed(user.userId)) {
+    await ctx.answerCallbackQuery({ text: '联系作者 https://t.me/oxbaimao 开启测试', show_alert: true });
+    return ctx.editMessageText(McpMenu.renderAccessRestrictedText(user.lang), {
+      reply_markup: McpMenu.renderAccessRestrictedKeyboard(user.lang),
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
     });
   }
 
@@ -766,10 +927,13 @@ bot.on('callback_query:data', async ctx => {
     const tokenAddress = TokenKeyHelper.toAddress(shortKey);
     await ctx.answerCallbackQuery();
     await syncWalletBalances(user, user.activeChain);
+    await syncTokenHoldings(user, user.activeChain, tokenAddress);
     const currentWallets = getUserWallets(user);
-    const holding = user.tokenHoldings.get(tokenAddress.toLowerCase());
+    const holding = user.tokenHoldings.get(tokenAddress.toLowerCase()) || user.tokenHoldings.get(tokenAddress);
     const userHolding = holding?.amount || 0;
     const userHoldingNative = holding?.costNative || 0;
+    const boughtNative = holding?.totalBoughtNative || 0;
+    const soldNative = holding?.totalSoldNative || 0;
     const botUser = ctx.me?.username || 'whitecat_doge_yr3ybv_bot';
 
     const { text: panelText, keyboard } = await TokenDetector.analyzeAndBuildView(
@@ -779,8 +943,8 @@ bot.on('callback_query:data', async ctx => {
       user.lang,
       userHolding,
       userHoldingNative,
-      0,
-      0,
+      boughtNative,
+      soldNative,
       user.userId,
       botUser
     );
@@ -789,6 +953,108 @@ bot.on('callback_query:data', async ctx => {
       reply_markup: keyboard,
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true }
+    });
+  }
+
+  // G.9 🌐 ARC 生态与跨链指引菜单
+  if (data === 'menu_arc_guide' || data === 'menu_chain_guide_arc') {
+    await ctx.answerCallbackQuery();
+    return ctx.reply(ArcGuideMenu.renderText(user.lang), {
+      reply_markup: ArcGuideMenu.renderKeyboard(user.lang),
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
+    });
+  }
+
+  // G.9.1 🌐 全网主流公链生态与内盘指引菜单 (Solana, BSC, Base, Sui, TON 等)
+  if (data.startsWith('menu_chain_guide_')) {
+    const targetChain = data.replace('menu_chain_guide_', '');
+    await ctx.answerCallbackQuery();
+    return ctx.reply(ChainEcosystemMenu.renderText(targetChain, user.lang), {
+      reply_markup: ChainEcosystemMenu.renderKeyboard(targetChain, user.lang),
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true }
+    });
+  }
+
+  // G.10 ARC 生态一键直达代币交易 (如 $ARCAT / $SHARCFUN)
+  if (data.startsWith('arc_open_')) {
+    const shortKey = data.replace('arc_open_', '');
+    const tokenAddress = TokenKeyHelper.toAddress(shortKey);
+    await ctx.answerCallbackQuery();
+
+    // 自动切换至 arc 链
+    user.activeChain = 'arc';
+    user.onboarded = true;
+    saveUserStore();
+
+    let currentWallets = getUserWallets(user, 'arc');
+    if (currentWallets.length === 0) {
+      await createWalletForUser(user, 'arc');
+      currentWallets = getUserWallets(user, 'arc');
+    }
+    await syncWalletBalances(user, 'arc');
+    await syncTokenHoldings(user, 'arc', tokenAddress);
+
+    const holding = user.tokenHoldings.get(tokenAddress.toLowerCase()) || user.tokenHoldings.get(tokenAddress);
+    const userHolding = holding?.amount || 0;
+    const userHoldingNative = holding?.costNative || 0;
+    const boughtNative = holding?.totalBoughtNative || 0;
+    const soldNative = holding?.totalSoldNative || 0;
+    const botUser = ctx.me?.username || 'whitecat_doge_yr3ybv_bot';
+
+    const { text: panelText, keyboard } = await TokenDetector.analyzeAndBuildView(
+      'arc',
+      tokenAddress,
+      currentWallets,
+      user.lang,
+      userHolding,
+      userHoldingNative,
+      boughtNative,
+      soldNative,
+      user.userId,
+      botUser
+    );
+
+    return ctx.reply(panelText, {
+      reply_markup: keyboard,
+      parse_mode: 'HTML'
+    });
+  }
+
+  // G.11 钱包面板强制作为代币交易 (规避误判或预买)
+  if (data.startsWith('trade_force_')) {
+    const shortKey = data.replace('trade_force_', '');
+    const tokenAddress = TokenKeyHelper.toAddress(shortKey);
+    await ctx.answerCallbackQuery();
+
+    await syncWalletBalances(user, user.activeChain);
+    await syncTokenHoldings(user, user.activeChain, tokenAddress);
+
+    const currentWallets = getUserWallets(user, user.activeChain);
+    const holding = user.tokenHoldings.get(tokenAddress.toLowerCase()) || user.tokenHoldings.get(tokenAddress);
+    const userHolding = holding?.amount || 0;
+    const userHoldingNative = holding?.costNative || 0;
+    const boughtNative = holding?.totalBoughtNative || 0;
+    const soldNative = holding?.totalSoldNative || 0;
+    const botUser = ctx.me?.username || 'whitecat_doge_yr3ybv_bot';
+
+    const { text: panelText, keyboard } = await TokenDetector.analyzeAndBuildView(
+      user.activeChain,
+      tokenAddress,
+      currentWallets,
+      user.lang,
+      userHolding,
+      userHoldingNative,
+      boughtNative,
+      soldNative,
+      user.userId,
+      botUser
+    );
+
+    return ctx.reply(panelText, {
+      reply_markup: keyboard,
+      parse_mode: 'HTML'
     });
   }
 
@@ -820,8 +1086,8 @@ bot.on('callback_query:data', async ctx => {
 
   // J. 🏦 资产 (asset)
   if (data === 'asset' || data === 'asset_refresh') {
+    await ctx.answerCallbackQuery({ text: I18nService.t('msg.refreshedBalances', user.lang) }).catch(() => {});
     await syncWalletBalances(user, user.activeChain);
-    await ctx.answerCallbackQuery({ text: I18nService.t('msg.refreshedBalances', user.lang) });
     const holdings: TokenHoldingItem[] = [];
     user.tokenHoldings.forEach((holding) => {
       if (holding && holding.amount > 1e-4) {
@@ -960,17 +1226,48 @@ bot.on('callback_query:data', async ctx => {
 
   if (data === 'rename_wallet') {
     await ctx.answerCallbackQuery();
+    if (activeWallet) {
+      user.pendingAction = {
+        type: 'rename_wallet',
+        data: { address: activeWallet.address, chain: user.activeChain }
+      };
+    }
     return ctx.reply(I18nService.t('msg.enterNewLabel', user.lang));
   }
 
   if (data === 'export_private_key') {
     await ctx.answerCallbackQuery();
-    if (!activeWallet) return;
-    const pk = activeWallet.privateKey || '' ;
-    return ctx.reply(
-      I18nService.t('msg.privateKeyWarning', user.lang, { index: activeWallet.index + 1, address: activeWallet.address, pk: pk }),
-      { parse_mode: 'HTML' }
-    );
+    if (ctx.chat?.type !== 'private' || !activeWallet?.privateKey) return;
+    const { randomBytes } = await import('node:crypto');
+    const nonce = randomBytes(16).toString('hex');
+    keyExportRequests.set(user.userId, { nonce, address: activeWallet.address,
+      chain: user.activeChain, expires: Date.now() + 60000 });
+    const expiry = setTimeout(() => {
+      if (keyExportRequests.get(user.userId)?.nonce === nonce) keyExportRequests.delete(user.userId);
+    }, 60000);
+    expiry.unref();
+    return ctx.reply('Exporting shares your private key with Telegram. Confirm within 60 seconds. The key message will be deleted after 30 seconds.', {
+      protect_content: true,
+      reply_markup: new InlineKeyboard().text('Confirm key export', `confirm_key_export_${nonce}`)
+    });
+  }
+
+  if (data.startsWith('confirm_key_export_')) {
+    await ctx.answerCallbackQuery();
+    const request = keyExportRequests.get(user.userId);
+    keyExportRequests.delete(user.userId);
+    if (ctx.chat?.type !== 'private' || !request || request.expires < Date.now() ||
+        data !== `confirm_key_export_${request.nonce}` || request.chain !== user.activeChain ||
+        request.address !== activeWallet?.address || !activeWallet.privateKey) return;
+    const message = await ctx.reply(activeWallet.privateKey, { protect_content: true });
+    const chatId = ctx.chat.id;
+    const deletion = setTimeout(() => {
+      void ctx.api.deleteMessage(chatId, message.message_id).catch(() => {
+        console.error('[Wallet] Key export message deletion failed');
+      });
+    }, 30000);
+    deletion.unref();
+    return;
   }
 
   if (data === 'delete_wallet') {
@@ -1059,11 +1356,24 @@ bot.on('callback_query:data', async ctx => {
     });
   }
 
-  if (data.startsWith('set_buy_') || data.startsWith('set_sell_')) {
+  if (data.startsWith('set_buy_')) {
     await ctx.answerCallbackQuery();
-    return ctx.reply(
-      I18nService.t('msg.enterPreset', user.lang)
-    );
+    const idx = parseInt(data.replace('set_buy_', '')) - 1;
+    user.pendingAction = {
+      type: 'set_buy_preset',
+      data: { index: isNaN(idx) ? 0 : idx }
+    };
+    return ctx.reply(I18nService.t('msg.enterPreset', user.lang));
+  }
+
+  if (data.startsWith('set_sell_')) {
+    await ctx.answerCallbackQuery();
+    const idx = parseInt(data.replace('set_sell_', '')) - 1;
+    user.pendingAction = {
+      type: 'set_sell_preset',
+      data: { index: isNaN(idx) ? 0 : idx }
+    };
+    return ctx.reply(I18nService.t('msg.enterPreset', user.lang));
   }
 
   // M. 🎁 邀请奖励 (referral)
@@ -1095,14 +1405,18 @@ bot.on('callback_query:data', async ctx => {
   // N. 📌 限价单 (limit_order_list)
   if (data === 'limit_order_list' || data === 'limit_refresh') {
     await ctx.answerCallbackQuery({ text: I18nService.t('msg.limitRefreshed', user.lang) });
-    return ctx.editMessageText(LimitOrderMenu.renderText(activeWallet, user.limitOrders, user.lang), {
+    return ctx.editMessageText(LimitOrderMenu.renderText(activeWallet, user.limitOrders, user.lang, user.activeChain), {
       reply_markup: LimitOrderMenu.renderKeyboard(user.lang),
       parse_mode: 'HTML'
     });
   }
 
-  if (data === 'limit_add') {
+  if (data === 'limit_add' || data.startsWith('lmt_') || data.startsWith('limit_order_')) {
     await ctx.answerCallbackQuery();
+    user.pendingAction = {
+      type: 'add_limit_order',
+      data: { chain: user.activeChain }
+    };
     return ctx.reply(
       I18nService.t('msg.enterLimitOrder', user.lang),
       { parse_mode: 'HTML' }
@@ -1131,9 +1445,14 @@ bot.on('callback_query:data', async ctx => {
     const rawToken = data.replace('mr?', '');
     const ca = TokenKeyHelper.toAddress(rawToken);
     const targetChain = resolveChainForToken(ca, user.activeChain);
-    await syncWalletBalances(user, targetChain);
-    await ctx.answerCallbackQuery({ text: I18nService.t('msg.refreshingLive', user.lang) });
-    const market = await TokenMarketService.fetchTokenDetails(ca, targetChain);
+    // 立即应答回调提示正在刷新，解除前端按钮等待
+    await ctx.answerCallbackQuery({ text: I18nService.t('msg.refreshingLive', user.lang) }).catch(() => {});
+    // 并发请求余额、持仓与市场数据，大幅缩短刷新耗时
+    const [, , market] = await Promise.all([
+      syncWalletBalances(user, targetChain),
+      syncTokenHoldings(user, targetChain, ca),
+      TokenMarketService.fetchTokenDetails(ca, targetChain)
+    ]);
     const lowerCa = ca.toLowerCase();
     const holdingObj = user.tokenHoldings.get(lowerCa);
     const userHolding = holdingObj ? holdingObj.amount : 0;
@@ -1183,7 +1502,7 @@ bot.on('callback_query:data', async ctx => {
       botUsername: botUser
     });
     return ctx.editMessageText(text, {
-      reply_markup: TradeMenu.renderKeyboard(targetChain, ca, user.lang),
+      reply_markup: TradeMenu.renderKeyboard(targetChain, ca, user.lang, user.tradeConfig),
       parse_mode: 'HTML'
     });
   }
@@ -1193,6 +1512,7 @@ bot.on('callback_query:data', async ctx => {
     let rawToken = '';
     let presetIdx = 1;
     let explicitBuyAmount: number | null = null;
+    let embeddedChain: string | null = null;
 
     if (data.startsWith('mbac?')) {
       const payload = data.replace('mbac?', '');
@@ -1213,18 +1533,28 @@ bot.on('callback_query:data', async ctx => {
         rawToken = parts[1];
         presetIdx = parseInt(parts[2]) || 1;
       } else if (parts.length >= 4) {
+        embeddedChain = parts[1];
         rawToken = parts[2];
         presetIdx = parseInt(parts[3]) || 1;
       }
     }
 
     const tokenAddress = TokenKeyHelper.toAddress(rawToken);
-    const targetChain = resolveChainForToken(tokenAddress, user.activeChain);
-    await syncWalletBalances(user, targetChain);
+    if (embeddedChain && embeddedChain.toLowerCase() !== user.activeChain.toLowerCase()) {
+      await ctx.answerCallbackQuery({
+        text: (user.lang && user.lang.startsWith('zh'))
+          ? `⚠️ 此按钮属于 ${MainMenu.getChainDisplayName(embeddedChain)}，与当前激活网络(${MainMenu.getChainDisplayName(user.activeChain)})不符，请刷新面板。`
+          : `⚠️ This button belongs to ${MainMenu.getChainDisplayName(embeddedChain)}, not active network (${MainMenu.getChainDisplayName(user.activeChain)}). Please refresh.`,
+        show_alert: true
+      });
+      return;
+    }
+    const targetChain = (embeddedChain || resolveChainForToken(tokenAddress, user.activeChain)).toLowerCase();
     const chainSymbol = MainMenu.getChainNativeSymbol(targetChain);
 
     const solPresets = [0.1, 0.5, 1, 2, 5];
     const suiPresets = [0.05, 0.1, 0.2, 0.5, 1];
+    const arcPresets = SettingsMenu.getEffectiveBuyPresets('arc', user.tradeConfig);
     const bscPresets = user.tradeConfig.buyPresets || [0.02, 0.05, 0.1, 0.2, 0.5];
 
     let buyAmount = explicitBuyAmount !== null
@@ -1233,17 +1563,24 @@ bot.on('callback_query:data', async ctx => {
           ? (solPresets[presetIdx - 1] || 0.1)
           : targetChain === 'sui'
           ? (suiPresets[presetIdx - 1] || 0.1)
+          : targetChain === 'arc'
+          ? (arcPresets[presetIdx - 1] || 10)
           : (bscPresets[presetIdx - 1] || 0.02));
 
     const targetWallets = getUserWallets(user, targetChain);
     const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
 
-    if (!targetWallet || (targetWallet.balance || 0) < buyAmount) {
-      await ctx.answerCallbackQuery({ text: I18nService.t('msg.insufficientBalance', user.lang), show_alert: true });
-      return ctx.reply(I18nService.t('msg.insufficientBalance', user.lang));
+    // 优先基于内存/缓存余额做即时判断，避免无谓转圈等待
+    if (!targetWallet || (targetWallet.balance !== undefined && targetWallet.balance < buyAmount)) {
+      await syncWalletBalances(user, targetChain);
+      if (!targetWallet || (targetWallet.balance || 0) < buyAmount) {
+        await ctx.answerCallbackQuery({ text: I18nService.t('msg.insufficientBalance', user.lang), show_alert: true });
+        return ctx.reply(I18nService.t('msg.insufficientBalance', user.lang));
+      }
     }
 
-    await ctx.answerCallbackQuery({ text: I18nService.t('msg.turboExecuting', user.lang) });
+    // 立即应答极速执行 Toast，彻底消除前端按钮转圈等待
+    await ctx.answerCallbackQuery({ text: I18nService.t('msg.turboExecuting', user.lang) }).catch(() => {});
 
     const result = await OnChainSwapService.executeFastBuy({
       userId: user.userId,
@@ -1253,40 +1590,47 @@ bot.on('callback_query:data', async ctx => {
       tokenAddress,
       amountNative: buyAmount,
       slippagePct: user.tradeConfig.slippage,
-      priorityFeeTier: user.tradeConfig.mode === 'fast' ? 'turbo' : 'normal'
+      priorityFeeTier: user.tradeConfig.mode === 'fast' ? 'turbo' : 'normal',
+      gasTip: SettingsMenu.getEffectiveTip(targetChain, user.tradeConfig)
     });
 
-    if (result.status !== 'SUCCESS' || result.error) {
-      return ctx.reply(
-        I18nService.t('msg.buyFailed', user.lang, { error: result.error || 'Execution failed' }),
-        { parse_mode: 'HTML' }
-      );
+    if (result.status === 'PENDING') {
+      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
     }
+    if (result.status !== 'SUCCESS' || result.error) {
+      let failMsg = I18nService.t('msg.buyFailed', user.lang, { error: result.error || 'Execution failed' });
+      if (result.txHash && result.txHash.startsWith('0x')) {
+        const txUrl = getChainTxUrl(targetChain, result.txHash);
+        const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+        failMsg += `\n\n🔗 交易哈希: <a href="${txUrl}">${shortHash}</a> (链上回滚 Reverted)`;
+      }
+      return ctx.reply(failMsg, { parse_mode: 'HTML' });
+    }
+
+    const lowerCa = tokenAddress.toLowerCase();
+    const existingHolding = user.tokenHoldings.get(lowerCa);
+    const prevAmount = existingHolding ? existingHolding.amount : 0;
+    const prevCost = existingHolding ? existingHolding.costNative : 0;
+    const prevBought = existingHolding?.totalBoughtNative ?? prevCost;
+    const prevSold = existingHolding?.totalSoldNative ?? 0;
+
+    user.tokenHoldings.set(lowerCa, {
+      tokenAddress,
+      chain: targetChain,
+      symbol: result.tokenSymbol || existingHolding?.symbol || 'TOKEN',
+      name: result.tokenName || existingHolding?.name || 'Token',
+      amount: prevAmount + result.estimatedAmountOut,
+      costNative: parseFloat((prevCost + buyAmount).toFixed(4)),
+      totalBoughtNative: parseFloat((prevBought + buyAmount).toFixed(4)),
+      totalSoldNative: prevSold
+    });
 
     if (result.isRealOnChain) {
       await new Promise(r => setTimeout(r, 1500));
       await syncWalletBalances(user, targetChain);
-      await syncTokenHoldings(user, targetChain);
+      await syncTokenHoldings(user, targetChain, tokenAddress);
     } else {
       targetWallet.balance = parseFloat(Math.max((targetWallet.balance || 0) - buyAmount, 0).toFixed(4));
-
-      const lowerCa = tokenAddress.toLowerCase();
-      const existingHolding = user.tokenHoldings.get(lowerCa);
-      const prevAmount = existingHolding ? existingHolding.amount : 0;
-      const prevCost = existingHolding ? existingHolding.costNative : 0;
-      const prevBought = existingHolding?.totalBoughtNative ?? prevCost;
-      const prevSold = existingHolding?.totalSoldNative ?? 0;
-
-      user.tokenHoldings.set(lowerCa, {
-        tokenAddress,
-        chain: targetChain,
-        symbol: result.tokenSymbol || existingHolding?.symbol || 'TOKEN',
-        name: result.tokenName || existingHolding?.name || 'Token',
-        amount: prevAmount + result.estimatedAmountOut,
-        costNative: parseFloat((prevCost + buyAmount).toFixed(4)),
-        totalBoughtNative: parseFloat((prevBought + buyAmount).toFixed(4)),
-        totalSoldNative: prevSold
-      });
     }
 
     processTradeReferralAndFee(user, buyAmount);
@@ -1336,13 +1680,36 @@ bot.on('callback_query:data', async ctx => {
 
   // R. 购买 X {Symbol} (buy_x_... 或 mbai?...)
   if (data.startsWith('buy_x_') || data.startsWith('mbai?')) {
-    const rawToken = data.startsWith('mbai?') ? data.replace('mbai?', '') : data.replace('buy_x_', '');
+    let rawToken = '';
+    let embeddedChain: string | null = null;
+    if (data.startsWith('mbai?')) {
+      rawToken = data.replace('mbai?', '');
+    } else {
+      const rest = data.replace('buy_x_', '');
+      const parts = rest.split('_');
+      if (parts.length >= 2 && !rest.startsWith('tk_')) {
+        embeddedChain = parts[0];
+        rawToken = parts.slice(1).join('_');
+      } else {
+        rawToken = rest;
+      }
+    }
     const tokenAddress = TokenKeyHelper.toAddress(rawToken);
-    const targetChain = resolveChainForToken(tokenAddress, user.activeChain);
-    await syncWalletBalances(user, targetChain);
+    if (embeddedChain && embeddedChain.toLowerCase() !== user.activeChain.toLowerCase()) {
+      await ctx.answerCallbackQuery({
+        text: (user.lang && user.lang.startsWith('zh'))
+          ? `⚠️ 此按钮属于 ${MainMenu.getChainDisplayName(embeddedChain)}，与当前激活网络(${MainMenu.getChainDisplayName(user.activeChain)})不符，请刷新面板。`
+          : `⚠️ This button belongs to ${MainMenu.getChainDisplayName(embeddedChain)}, not active network (${MainMenu.getChainDisplayName(user.activeChain)}). Please refresh.`,
+        show_alert: true
+      });
+      return;
+    }
+    const targetChain = (embeddedChain || resolveChainForToken(tokenAddress, user.activeChain)).toLowerCase();
+    // 立即应答回调释放按钮状态，后台预热更新余额
+    await ctx.answerCallbackQuery().catch(() => {});
+    syncWalletBalances(user, targetChain).catch(() => {});
     const chainSymbol = MainMenu.getChainNativeSymbol(targetChain);
 
-    await ctx.answerCallbackQuery();
     user.pendingAction = {
       type: 'buy_x',
       data: { tokenAddress, chain: targetChain }
@@ -1357,6 +1724,7 @@ bot.on('callback_query:data', async ctx => {
   if (data.startsWith('sell_') && !data.startsWith('sell_x_') || data.startsWith('msac?')) {
     let rawToken = '';
     let sellPct = 50;
+    let embeddedChain: string | null = null;
 
     if (data.startsWith('msac?')) {
       const payload = data.replace('msac?', '');
@@ -1370,14 +1738,23 @@ bot.on('callback_query:data', async ctx => {
         rawToken = parts[1];
         sellPct = parseInt(parts[2]) || 50;
       } else if (parts.length >= 4) {
+        embeddedChain = parts[1];
         rawToken = parts[2];
         sellPct = parseInt(parts[3]) || 50;
       }
     }
 
     const tokenAddress = TokenKeyHelper.toAddress(rawToken);
-    const targetChain = resolveChainForToken(tokenAddress, user.activeChain);
-    await syncWalletBalances(user, targetChain);
+    if (embeddedChain && embeddedChain.toLowerCase() !== user.activeChain.toLowerCase()) {
+      await ctx.answerCallbackQuery({
+        text: (user.lang && user.lang.startsWith('zh'))
+          ? `⚠️ 此按钮属于 ${MainMenu.getChainDisplayName(embeddedChain)}，与当前激活网络(${MainMenu.getChainDisplayName(user.activeChain)})不符，请刷新面板。`
+          : `⚠️ This button belongs to ${MainMenu.getChainDisplayName(embeddedChain)}, not active network (${MainMenu.getChainDisplayName(user.activeChain)}). Please refresh.`,
+        show_alert: true
+      });
+      return;
+    }
+    const targetChain = (embeddedChain || resolveChainForToken(tokenAddress, user.activeChain)).toLowerCase();
     const chainSymbol = MainMenu.getChainNativeSymbol(targetChain);
     const targetWallets = getUserWallets(user, targetChain);
     const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
@@ -1390,7 +1767,9 @@ bot.on('callback_query:data', async ctx => {
       return ctx.reply(I18nService.t('msg.insufficientBalance', user.lang));
     }
 
-    await ctx.answerCallbackQuery({ text: I18nService.t('msg.sellingExecuting', user.lang) });
+    // 立即应答卖出执行 Toast，彻底消除前端按钮转圈等待
+    await ctx.answerCallbackQuery({ text: I18nService.t('msg.sellingExecuting', user.lang) }).catch(() => {});
+    await syncWalletBalances(user, targetChain);
 
     const result = await OnChainSwapService.executeFastSell({
       userId: user.userId,
@@ -1402,31 +1781,38 @@ bot.on('callback_query:data', async ctx => {
       sellInitial: false,
       totalTokenBalance: holding,
       costBasisNative: holdingObj?.costNative || 0.1,
-      slippagePct: user.tradeConfig.slippage
+      slippagePct: user.tradeConfig.slippage,
+      gasTip: SettingsMenu.getEffectiveTip(targetChain, user.tradeConfig)
     });
 
+    if (result.status === 'PENDING') {
+      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
+    }
     if (result.status !== 'SUCCESS' || result.error) {
-      return ctx.reply(
-        I18nService.t('msg.sellFailed', user.lang, { error: result.error || 'Execution failed' }),
-        { parse_mode: 'HTML' }
-      );
+      let failMsg = I18nService.t('msg.sellFailed', user.lang, { error: result.error || 'Execution failed' });
+      if (result.txHash && result.txHash.startsWith('0x')) {
+        const txUrl = getChainTxUrl(targetChain, result.txHash);
+        const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+        failMsg += `\n\n🔗 交易哈希: <a href="${txUrl}">${shortHash}</a> (链上回滚 Reverted)`;
+      }
+      return ctx.reply(failMsg, { parse_mode: 'HTML' });
+    }
+
+    const remainingTokens = holding * (1 - sellPct / 100);
+    if (remainingTokens <= 0.0001) {
+      user.tokenHoldings.delete(lowerCa);
+    } else if (holdingObj) {
+      holdingObj.amount = remainingTokens;
+      holdingObj.costNative = parseFloat((holdingObj.costNative * (1 - sellPct / 100)).toFixed(4));
+      holdingObj.totalSoldNative = parseFloat(((holdingObj.totalSoldNative ?? 0) + result.estimatedAmountOut).toFixed(4));
+      user.tokenHoldings.set(lowerCa, holdingObj);
     }
 
     if (result.isRealOnChain) {
       await new Promise(r => setTimeout(r, 1500));
       await syncWalletBalances(user, targetChain);
-      await syncTokenHoldings(user, targetChain);
+      await syncTokenHoldings(user, targetChain, tokenAddress);
     } else {
-      const remainingTokens = holding * (1 - sellPct / 100);
-      if (remainingTokens <= 0.0001) {
-        user.tokenHoldings.delete(lowerCa);
-      } else if (holdingObj) {
-        holdingObj.amount = remainingTokens;
-        holdingObj.costNative = parseFloat((holdingObj.costNative * (1 - sellPct / 100)).toFixed(4));
-        holdingObj.totalSoldNative = parseFloat(((holdingObj.totalSoldNative ?? 0) + result.estimatedAmountOut).toFixed(4));
-        user.tokenHoldings.set(lowerCa, holdingObj);
-      }
-
       if (targetWallet) {
         targetWallet.balance = parseFloat(((targetWallet.balance || 0) + result.estimatedAmountOut).toFixed(4));
       }
@@ -1480,9 +1866,31 @@ bot.on('callback_query:data', async ctx => {
 
   // T. 出售 X % (sell_x_... 或 msai?...)
   if (data.startsWith('sell_x_') || data.startsWith('msai?')) {
-    const rawToken = data.startsWith('msai?') ? data.replace('msai?', '') : data.replace('sell_x_', '');
+    let rawToken = '';
+    let embeddedChain: string | null = null;
+    if (data.startsWith('msai?')) {
+      rawToken = data.replace('msai?', '');
+    } else {
+      const rest = data.replace('sell_x_', '');
+      const parts = rest.split('_');
+      if (parts.length >= 2 && !rest.startsWith('tk_')) {
+        embeddedChain = parts[0];
+        rawToken = parts.slice(1).join('_');
+      } else {
+        rawToken = rest;
+      }
+    }
     const tokenAddress = TokenKeyHelper.toAddress(rawToken);
-    const targetChain = resolveChainForToken(tokenAddress, user.activeChain);
+    if (embeddedChain && embeddedChain.toLowerCase() !== user.activeChain.toLowerCase()) {
+      await ctx.answerCallbackQuery({
+        text: (user.lang && user.lang.startsWith('zh'))
+          ? `⚠️ 此按钮属于 ${MainMenu.getChainDisplayName(embeddedChain)}，与当前激活网络(${MainMenu.getChainDisplayName(user.activeChain)})不符，请刷新面板。`
+          : `⚠️ This button belongs to ${MainMenu.getChainDisplayName(embeddedChain)}, not active network (${MainMenu.getChainDisplayName(user.activeChain)}). Please refresh.`,
+        show_alert: true
+      });
+      return;
+    }
+    const targetChain = (embeddedChain || resolveChainForToken(tokenAddress, user.activeChain)).toLowerCase();
     await syncWalletBalances(user, targetChain);
 
     await ctx.answerCallbackQuery();
@@ -1510,13 +1918,24 @@ bot.on('callback_query:data', async ctx => {
       await ctx.answerCallbackQuery({ text: I18nService.t('msg.insufficientBalance', user.lang), show_alert: true });
       return ctx.reply(I18nService.t('msg.insufficientBalance', user.lang));
     }
+    let entryPrice = 0;
+    if (holdingObj && holdingObj.costNative > 0 && holdingObj.amount > 0) {
+      entryPrice = holdingObj.costNative / holdingObj.amount;
+    } else {
+      const details = await TokenMarketService.fetchTokenDetails(tokenAddress, user.activeChain);
+      entryPrice = details.priceNative > 0 ? details.priceNative : 0.0001;
+    }
+    const triggerPrice = entryPrice * 2;
     user.limitOrders.push({
       id: `tp1_${Date.now()}`,
       tokenAddress,
       symbol: holdingObj?.symbol || 'TOKEN',
       orderType: 'SELL',
-      triggerPrice: 0.00004,
-      amount: holding * 0.5
+      triggerPrice,
+      amount: holding * 0.5,
+      chain: user.activeChain,
+      baseCurrency: user.activeChain.toLowerCase() === 'arc' ? 'USDC' : 'USD',
+      createdAt: Date.now()
     });
     saveUserStore();
     await ctx.answerCallbackQuery();
@@ -1541,13 +1960,24 @@ bot.on('callback_query:data', async ctx => {
       await ctx.answerCallbackQuery({ text: I18nService.t('msg.insufficientBalance', user.lang), show_alert: true });
       return ctx.reply(I18nService.t('msg.insufficientBalance', user.lang));
     }
+    let entryPrice = 0;
+    if (holdingObj && holdingObj.costNative > 0 && holdingObj.amount > 0) {
+      entryPrice = holdingObj.costNative / holdingObj.amount;
+    } else {
+      const details = await TokenMarketService.fetchTokenDetails(tokenAddress, user.activeChain);
+      entryPrice = details.priceNative > 0 ? details.priceNative : 0.0001;
+    }
+    const triggerPrice = entryPrice * 10;
     user.limitOrders.push({
       id: `tp2_${Date.now()}`,
       tokenAddress,
       symbol: holdingObj?.symbol || 'TOKEN',
       orderType: 'SELL',
-      triggerPrice: 0.0002,
-      amount: holding
+      triggerPrice,
+      amount: holding,
+      chain: user.activeChain,
+      baseCurrency: user.activeChain.toLowerCase() === 'arc' ? 'USDC' : 'USD',
+      createdAt: Date.now()
     });
     saveUserStore();
     await ctx.answerCallbackQuery();
@@ -1832,38 +2262,44 @@ bot.on('message:text', async ctx => {
         priorityFeeTier: user.tradeConfig.mode === 'fast' ? 'turbo' : 'normal'
       });
 
-      if (result.status !== 'SUCCESS' || result.error) {
-        return ctx.reply(
-          I18nService.t('msg.buyFailed', user.lang, { error: result.error || 'Execution failed' }),
-          { parse_mode: 'HTML' }
-        );
+      if (result.status === 'PENDING') {
+      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
+    }
+    if (result.status !== 'SUCCESS' || result.error) {
+        let failMsg = I18nService.t('msg.buyFailed', user.lang, { error: result.error || 'Execution failed' });
+        if (result.txHash && result.txHash.startsWith('0x')) {
+          const txUrl = getChainTxUrl(targetChain, result.txHash);
+          const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+          failMsg += `\n\n🔗 交易哈希: <a href="${txUrl}">${shortHash}</a> (链上回滚 Reverted)`;
+        }
+        return ctx.reply(failMsg, { parse_mode: 'HTML' });
       }
 
-      if (result.isRealOnChain) {
-        await new Promise(r => setTimeout(r, 1500));
-        await syncWalletBalances(user, targetChain);
-        await syncTokenHoldings(user, targetChain);
-      } else {
-        targetWallet.balance = parseFloat(Math.max((targetWallet.balance || 0) - amt, 0).toFixed(4));
+    const lowerCa = tokenAddress.toLowerCase();
+    const existingHolding = user.tokenHoldings.get(lowerCa);
+    const prevAmount = existingHolding ? existingHolding.amount : 0;
+    const prevCost = existingHolding ? existingHolding.costNative : 0;
+    const prevBought = existingHolding?.totalBoughtNative ?? prevCost;
+    const prevSold = existingHolding?.totalSoldNative ?? 0;
 
-        const lowerCa = tokenAddress.toLowerCase();
-        const existingHolding = user.tokenHoldings.get(lowerCa);
-        const prevAmount = existingHolding ? existingHolding.amount : 0;
-        const prevCost = existingHolding ? existingHolding.costNative : 0;
-        const prevBought = existingHolding?.totalBoughtNative ?? prevCost;
-        const prevSold = existingHolding?.totalSoldNative ?? 0;
+    user.tokenHoldings.set(lowerCa, {
+      tokenAddress,
+      chain: targetChain,
+      symbol: result.tokenSymbol || existingHolding?.symbol || 'TOKEN',
+      name: result.tokenName || existingHolding?.name || 'Token',
+      amount: prevAmount + result.estimatedAmountOut,
+      costNative: parseFloat((prevCost + amt).toFixed(4)),
+      totalBoughtNative: parseFloat((prevBought + amt).toFixed(4)),
+      totalSoldNative: prevSold
+    });
 
-        user.tokenHoldings.set(lowerCa, {
-          tokenAddress,
-          chain: targetChain,
-          symbol: result.tokenSymbol || existingHolding?.symbol || 'TOKEN',
-          name: result.tokenName || existingHolding?.name || 'Token',
-          amount: prevAmount + result.estimatedAmountOut,
-          costNative: parseFloat((prevCost + amt).toFixed(4)),
-          totalBoughtNative: parseFloat((prevBought + amt).toFixed(4)),
-          totalSoldNative: prevSold
-        });
-      }
+    if (result.isRealOnChain) {
+      await new Promise(r => setTimeout(r, 1500));
+      await syncWalletBalances(user, targetChain);
+      await syncTokenHoldings(user, targetChain, tokenAddress);
+    } else {
+      targetWallet.balance = parseFloat(Math.max((targetWallet.balance || 0) - amt, 0).toFixed(4));
+    }
 
       processTradeReferralAndFee(user, amt);
       recordUserTransaction(user, {
@@ -1942,35 +2378,42 @@ bot.on('message:text', async ctx => {
         sellInitial: false,
         totalTokenBalance: holding,
         costBasisNative: holdingObj?.costNative || 0.1,
-        slippagePct: user.tradeConfig.slippage
+        slippagePct: user.tradeConfig.slippage,
+        gasTip: SettingsMenu.getEffectiveTip(targetChain, user.tradeConfig)
       });
 
-      if (result.status !== 'SUCCESS' || result.error) {
-        return ctx.reply(
-          I18nService.t('msg.sellFailed', user.lang, { error: result.error || 'Execution failed' }),
-          { parse_mode: 'HTML' }
-        );
+      if (result.status === 'PENDING') {
+      return ctx.reply(`PENDING: ${result.txHash}\nTransaction broadcast; confirmation pending. Do not resubmit.`);
+    }
+    if (result.status !== 'SUCCESS' || result.error) {
+        let failMsg = I18nService.t('msg.sellFailed', user.lang, { error: result.error || 'Execution failed' });
+        if (result.txHash && result.txHash.startsWith('0x')) {
+          const txUrl = getChainTxUrl(targetChain, result.txHash);
+          const shortHash = result.txHash.length > 20 ? `${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}` : result.txHash;
+          failMsg += `\n\n🔗 交易哈希: <a href="${txUrl}">${shortHash}</a> (链上回滚 Reverted)`;
+        }
+        return ctx.reply(failMsg, { parse_mode: 'HTML' });
       }
 
-      if (result.isRealOnChain) {
-        await new Promise(r => setTimeout(r, 1500));
-        await syncWalletBalances(user, targetChain);
-        await syncTokenHoldings(user, targetChain);
-      } else {
-        const remainingTokens = holding * (1 - pct / 100);
-        if (remainingTokens <= 0.0001) {
-          user.tokenHoldings.delete(lowerCa);
-        } else if (holdingObj) {
-          holdingObj.amount = remainingTokens;
-          holdingObj.costNative = parseFloat((holdingObj.costNative * (1 - pct / 100)).toFixed(4));
-          holdingObj.totalSoldNative = parseFloat(((holdingObj.totalSoldNative ?? 0) + result.estimatedAmountOut).toFixed(4));
-          user.tokenHoldings.set(lowerCa, holdingObj);
-        }
+    const remainingTokens = holding * (1 - pct / 100);
+    if (remainingTokens <= 0.0001) {
+      user.tokenHoldings.delete(lowerCa);
+    } else if (holdingObj) {
+      holdingObj.amount = remainingTokens;
+      holdingObj.costNative = parseFloat((holdingObj.costNative * (1 - pct / 100)).toFixed(4));
+      holdingObj.totalSoldNative = parseFloat(((holdingObj.totalSoldNative ?? 0) + result.estimatedAmountOut).toFixed(4));
+      user.tokenHoldings.set(lowerCa, holdingObj);
+    }
 
-        if (targetWallet) {
-          targetWallet.balance = parseFloat(((targetWallet.balance || 0) + result.estimatedAmountOut).toFixed(4));
-        }
+    if (result.isRealOnChain) {
+      await new Promise(r => setTimeout(r, 1500));
+      await syncWalletBalances(user, targetChain);
+      await syncTokenHoldings(user, targetChain, tokenAddress);
+    } else {
+      if (targetWallet) {
+        targetWallet.balance = parseFloat(((targetWallet.balance || 0) + result.estimatedAmountOut).toFixed(4));
       }
+    }
 
       const soldAmount = holding * (pct / 100);
       processTradeReferralAndFee(user, result.estimatedAmountOut);
@@ -2033,10 +2476,14 @@ bot.on('message:text', async ctx => {
       user.pendingAction = undefined;
       const tip = parseFloat(text);
       if (!isNaN(tip) && tip >= 0) {
+        if (!user.tradeConfig.chainGasTips) user.tradeConfig.chainGasTips = {};
+        user.tradeConfig.chainGasTips[user.activeChain.toLowerCase()] = tip;
         user.tradeConfig.gasTip = tip;
+        saveUserStore();
       }
+      const effectiveTip = SettingsMenu.getEffectiveTip(user.activeChain, user.tradeConfig);
       return ctx.reply(
-        I18nService.t('msg.gasTipUpdated', user.lang, { tip: user.tradeConfig.gasTip, symbol: nativeSymbol }),
+        I18nService.t('msg.gasTipUpdated', user.lang, { tip: effectiveTip, symbol: nativeSymbol }),
         { parse_mode: 'HTML' }
       );
     }
@@ -2299,7 +2746,7 @@ bot.on('message:text', async ctx => {
         { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
       );
     }
-      // 6. 转账 token (代币)
+      // 6. 转账 token (代币) - 真实链上转账 (BUG-018)
       if (action.type === 'transfer_token') {
         const parts = text.split(/\s+/);
         if (parts.length >= 3) {
@@ -2310,35 +2757,73 @@ bot.on('message:text', async ctx => {
           const amt = parseFloat(parts[2] || '0');
           const targetWallets = getUserWallets(user, user.activeChain);
           const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
-          const txHash = OnChainSwapService.generateChainTxHash(user.activeChain);
-          const txUrl = getChainTxUrl(user.activeChain, txHash);
-          const shortHash = txHash.length > 16 ? `${txHash.slice(0, 8)}...${txHash.slice(-6)}` : txHash;
 
-          if (amt > 0 && targetWallet) {
-            recordUserTransaction(user, {
-              chain: user.activeChain,
-              type: 'TRANSFER',
-              walletAddress: targetWallet.address,
-              tokenAddress: ca,
-              tokenSymbol: 'TOKEN',
-              tokenName: 'Token',
-              amountNative: 0,
-              amountToken: amt,
-              txHash
-            });
-            saveUserStore();
+          if (!targetWallet || !targetWallet.privateKey) {
+            return ctx.reply(isZh ? '❌ 钱包未配置私钥，无法转账' : '❌ Wallet has no private key configured');
+          }
+          if (isNaN(amt) || amt <= 0) {
+            return ctx.reply(isZh ? '❌ 转账金额必须大于 0' : '❌ Amount must be greater than 0');
+          }
+
+          const res = await OnChainSwapService.executeTransferToken({
+            chain: user.activeChain,
+            fromAddress: targetWallet.address,
+            privateKey: targetWallet.privateKey,
+            tokenAddress: ca,
+            toAddress: toAddr,
+            amount: amt
+          });
+
+          if (!res.success && res.status !== 'PENDING') {
+            return ctx.reply(
+              isZh
+                ? `❌ <b>代币转账失败：</b>${res.error || '未知错误'}`
+                : `❌ <b>Token transfer failed:</b> ${res.error || 'Unknown error'}`,
+              { parse_mode: 'HTML' }
+            );
+          }
+
+          recordUserTransaction(user, {
+            chain: user.activeChain,
+            type: 'TRANSFER',
+            walletAddress: targetWallet.address,
+            tokenAddress: ca,
+            tokenSymbol: 'TOKEN',
+            tokenName: 'Token',
+            amountNative: 0,
+            amountToken: amt,
+            txHash: res.txHash
+          });
+          saveUserStore();
+
+          const txUrl = getChainTxUrl(user.activeChain, res.txHash);
+          const shortHash = res.txHash.length > 16 ? `${res.txHash.slice(0, 8)}...${res.txHash.slice(-6)}` : res.txHash;
+
+          if (res.status === 'PENDING') {
+            return ctx.reply(
+              isZh
+                ? `⏳ <b>代币转账已广播，正在等待区块确认...</b>\n\n` +
+                  `📈 数量: <b>${amt}</b>\n` +
+                  `📥 目标地址: <code>${toAddr}</code>\n` +
+                  `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>`
+                : `⏳ <b>Token transfer broadcasted, awaiting confirmation...</b>\n\n` +
+                  `📈 Amount: <b>${amt}</b>\n` +
+                  `📥 Recipient: <code>${toAddr}</code>\n` +
+                  `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>`,
+              { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+            );
           }
 
           return ctx.reply(
             isZh
-              ? `✅ <b>代币转账指令已成功广播至区块链网络！</b>\n\n` +
+              ? `✅ <b>代币转账成功！</b>\n\n` +
                 `📈 数量: <b>${amt}</b>\n` +
                 `📥 目标地址: <code>${toAddr}</code>\n` +
-                `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>`
-              : `✅ <b>Token transfer broadcasted successfully!</b>\n\n` +
+                `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>${res.isRealOnChain ? ' (🔥 链上真实确认)' : ''}`
+              : `✅ <b>Token transfer successful!</b>\n\n` +
                 `📈 Amount: <b>${amt}</b>\n` +
                 `📥 Recipient: <code>${toAddr}</code>\n` +
-                `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>`,
+                `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>${res.isRealOnChain ? ' (🔥 On-Chain Confirmed)' : ''}`,
             { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
           );
         } else {
@@ -2380,37 +2865,263 @@ bot.on('message:text', async ctx => {
 
         const targetWallets = getUserWallets(user, user.activeChain);
         const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
-        const txHash = OnChainSwapService.generateChainTxHash(user.activeChain);
-        const txUrl = getChainTxUrl(user.activeChain, txHash);
-        const shortHash = txHash.length > 16 ? `${txHash.slice(0, 8)}...${txHash.slice(-6)}` : txHash;
+        if (!targetWallet || !targetWallet.privateKey) {
+          return ctx.reply(isZh ? '❌ 钱包未配置私钥，无法转账' : '❌ Wallet has no private key configured');
+        }
 
-        if (targetWallet) {
-          recordUserTransaction(user, {
-            chain: user.activeChain,
-            type: 'TRANSFER',
-            walletAddress: targetWallet.address,
-            tokenAddress: ca,
-            tokenSymbol: 'TOKEN',
-            tokenName: 'Token',
-            amountNative: 0,
-            amountToken: amt,
-            txHash
-          });
-          saveUserStore();
+        const res = await OnChainSwapService.executeTransferToken({
+          chain: user.activeChain,
+          fromAddress: targetWallet.address,
+          privateKey: targetWallet.privateKey,
+          tokenAddress: ca,
+          toAddress: toAddr,
+          amount: amt
+        });
+
+        if (!res.success && res.status !== 'PENDING') {
+          return ctx.reply(
+            isZh
+              ? `❌ <b>代币转账失败：</b>${res.error || '未知错误'}`
+              : `❌ <b>Token transfer failed:</b> ${res.error || 'Unknown error'}`,
+            { parse_mode: 'HTML' }
+          );
+        }
+
+        recordUserTransaction(user, {
+          chain: user.activeChain,
+          type: 'TRANSFER',
+          walletAddress: targetWallet.address,
+          tokenAddress: ca,
+          tokenSymbol: 'TOKEN',
+          tokenName: 'Token',
+          amountNative: 0,
+          amountToken: amt,
+          txHash: res.txHash
+        });
+        saveUserStore();
+
+        const txUrl = getChainTxUrl(user.activeChain, res.txHash);
+        const shortHash = res.txHash.length > 16 ? `${res.txHash.slice(0, 8)}...${res.txHash.slice(-6)}` : res.txHash;
+
+        if (res.status === 'PENDING') {
+          return ctx.reply(
+            isZh
+              ? `⏳ <b>代币转账已广播，正在等待区块确认...</b>\n\n` +
+                `📈 数量: <b>${amt}</b>\n` +
+                `📥 目标地址: <code>${toAddr}</code>\n` +
+                `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>`
+              : `⏳ <b>Token transfer broadcasted, awaiting confirmation...</b>\n\n` +
+                `📈 Amount: <b>${amt}</b>\n` +
+                `📥 Recipient: <code>${toAddr}</code>\n` +
+                `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>`,
+            { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
+          );
         }
 
         return ctx.reply(
           isZh
-            ? `✅ <b>代币转账指令已成功广播至区块链网络！</b>\n\n` +
+            ? `✅ <b>代币转账成功！</b>\n\n` +
               `📈 数量: <b>${amt}</b>\n` +
               `📥 目标地址: <code>${toAddr}</code>\n` +
-              `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>`
-            : `✅ <b>Token transfer broadcasted successfully!</b>\n\n` +
+              `🔗 交易哈希: <a href="${txUrl}">${shortHash}</a>${res.isRealOnChain ? ' (🔥 链上真实确认)' : ''}`
+            : `✅ <b>Token transfer successful!</b>\n\n` +
               `📈 Amount: <b>${amt}</b>\n` +
               `📥 Recipient: <code>${toAddr}</code>\n` +
-              `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>`,
+              `🔗 Tx Hash: <a href="${txUrl}">${shortHash}</a>${res.isRealOnChain ? ' (🔥 On-Chain Confirmed)' : ''}`,
           { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }
         );
+      }
+
+      // 7. 钱包重命名 (BUG-019)
+      if (action.type === 'rename_wallet') {
+        user.pendingAction = undefined;
+        const newName = text.slice(0, 32).trim();
+        if (!newName) {
+          return ctx.reply(isZh ? '❌ 钱包名称不能为空' : '❌ Wallet name cannot be empty');
+        }
+        const targetAddress = action.data?.address;
+        const chainWallets = getUserWallets(user, action.data?.chain || user.activeChain);
+        const w = chainWallets.find(x => x.address.toLowerCase() === (targetAddress || '').toLowerCase()) || chainWallets.find(x => x.isDefault) || chainWallets[0];
+        if (w) {
+          w.name = newName;
+          saveUserStore();
+          return ctx.reply(
+            isZh ? `✅ 钱包已重命名为: <b>${newName}</b>` : `✅ Wallet renamed to: <b>${newName}</b>`,
+            { parse_mode: 'HTML' }
+          );
+        }
+      }
+
+      // 8. 买入预设设置 (BUG-019)
+      if (action.type === 'set_buy_preset') {
+        user.pendingAction = undefined;
+        const val = parseFloat(text);
+        if (isNaN(val) || val <= 0) {
+          return ctx.reply(isZh ? '❌ 请输入有效的正数买入预设金额' : '❌ Please enter a valid positive buy amount');
+        }
+        const idx = action.data?.index ?? 0;
+        if (!user.tradeConfig.buyPresets) user.tradeConfig.buyPresets = [0.02, 0.05, 0.1, 0.2, 0.5];
+        user.tradeConfig.buyPresets[idx] = val;
+        saveUserStore();
+        return ctx.reply(
+          isZh
+            ? `✅ 买入预设 #${idx + 1} 已更新为: <b>${val}</b>`
+            : `✅ Buy preset #${idx + 1} updated to: <b>${val}</b>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+
+      // 9. 卖出预设设置 (BUG-019)
+      if (action.type === 'set_sell_preset') {
+        user.pendingAction = undefined;
+        const val = parseFloat(text);
+        if (isNaN(val) || val <= 0 || val > 100) {
+          return ctx.reply(isZh ? '❌ 请输入 1 到 100 之间的百分比' : '❌ Please enter a percentage between 1 and 100');
+        }
+        const idx = action.data?.index ?? 0;
+        if (!user.tradeConfig.sellPresets) user.tradeConfig.sellPresets = [50, 100];
+        user.tradeConfig.sellPresets[idx] = val;
+        saveUserStore();
+        return ctx.reply(
+          isZh
+            ? `✅ 卖出预设 #${idx + 1} 已更新为: <b>${val}%</b>`
+            : `✅ Sell preset #${idx + 1} updated to: <b>${val}%</b>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+
+      // 10. 添加限价单 (BUG-019)
+      if (action.type === 'add_limit_order') {
+        user.pendingAction = undefined;
+        const parts = text.split(/\s+/);
+        if (parts.length < 3) {
+          return ctx.reply(
+            isZh
+              ? '❌ 格式错误。正确格式: <code>&lt;代币合约CA&gt; &lt;触发价格&gt; &lt;数量&gt; [BUY|SELL]</code>'
+              : '❌ Invalid format. Expected: <code>&lt;token_address&gt; &lt;target_price&gt; &lt;amount&gt; [BUY|SELL]</code>',
+            { parse_mode: 'HTML' }
+          );
+        }
+        const tokenAddress = parts[0];
+        const targetPrice = parseFloat(parts[1]);
+        const amount = parseFloat(parts[2]);
+        const orderType = (parts[3] || 'BUY').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+
+        if (isNaN(targetPrice) || targetPrice <= 0 || isNaN(amount) || amount <= 0) {
+          return ctx.reply(isZh ? '❌ 价格与数量必须为有效正数' : '❌ Price and amount must be valid positive numbers');
+        }
+
+        const orderId = `lmt_${Date.now()}`;
+        if (!user.limitOrders) user.limitOrders = [];
+        user.limitOrders.push({
+          id: orderId,
+          tokenAddress,
+          symbol: 'TOKEN',
+          orderType,
+          triggerPrice: targetPrice,
+          amount,
+          chain: user.activeChain,
+          baseCurrency: user.activeChain.toLowerCase() === 'arc' ? 'USDC' : 'USD',
+          createdAt: Date.now()
+        });
+        saveUserStore();
+        const priceUnit = user.activeChain.toLowerCase() === 'arc' ? 'USDC' : '$';
+        return ctx.reply(
+          isZh
+            ? `✅ <b>限价单已创建！</b>\n\n` +
+              `📌 类型: <b>${orderType}</b>\n` +
+              `🎯 触发价: <b>${targetPrice} ${priceUnit}</b>\n` +
+              `📈 数量: <b>${amount}</b>\n` +
+              `🪙 代币: <code>${tokenAddress}</code>`
+            : `✅ <b>Limit order created!</b>\n\n` +
+              `📌 Type: <b>${orderType}</b>\n` +
+              `🎯 Trigger Price: <b>${targetPrice} ${priceUnit}</b>\n` +
+              `📈 Amount: <b>${amount}</b>\n` +
+              `🪙 Token: <code>${tokenAddress}</code>`,
+          { parse_mode: 'HTML' }
+        );
+      }
+
+      // 11. 导入私钥 (BUG-022)
+      if (action.type === 'import_wallet') {
+        user.pendingAction = undefined;
+        try {
+          await ctx.deleteMessage();
+        } catch {}
+
+        const rawKey = text.trim();
+        const targetChain = (action.data?.chain || user.activeChain).toLowerCase();
+        let importedAddress = '';
+        let cleanPk = '';
+
+        try {
+          if (['bsc', 'base', 'ethereum', 'robinhood', 'sei', 'xlayer', 'arc'].includes(targetChain)) {
+            cleanPk = rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`;
+            if (!/^0x[0-9a-fA-F]{64}$/.test(cleanPk)) {
+              throw new Error('EVM 私钥格式错误 (必须为 64 位十六进制字符)');
+            }
+            const evmWallet = new ethers.Wallet(cleanPk);
+            importedAddress = evmWallet.address;
+          } else if (targetChain === 'solana') {
+            cleanPk = rawKey;
+            const secret = bs58.decode(cleanPk);
+            if (secret.length !== 64) {
+              throw new Error('Solana 私钥长度无效 (必须为 64 字节 Base58 编码)');
+            }
+            const keypair = SolKeypair.fromSecretKey(secret);
+            importedAddress = keypair.publicKey.toBase58();
+          } else if (targetChain === 'sui') {
+            cleanPk = rawKey;
+            if (!cleanPk.startsWith('suiprivkey1')) {
+              throw new Error('Sui 私钥格式错误 (必须以 suiprivkey1 开头)');
+            }
+            const { secretKey } = decodeSuiPrivateKey(cleanPk);
+            const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+            importedAddress = keypair.toSuiAddress();
+          } else {
+            throw new Error(`暂不支持在 ${targetChain} 链上导入私钥`);
+          }
+
+          const chainWallets = getUserWallets(user, targetChain);
+          const exists = chainWallets.some(w => w.address.toLowerCase() === importedAddress.toLowerCase());
+          if (exists) {
+            return ctx.reply(
+              isZh
+                ? `⚠️ 钱包已存在，无需重复导入：<code>${importedAddress}</code>`
+                : `⚠️ Wallet already exists: <code>${importedAddress}</code>`,
+              { parse_mode: 'HTML' }
+            );
+          }
+
+          const isFirst = chainWallets.length === 0;
+          const newWalletEntry: WalletEntry = {
+            index: chainWallets.length + 1,
+            address: importedAddress,
+            privateKey: cleanPk,
+            symbol: MainMenu.getChainNativeSymbol(targetChain),
+            isDefault: isFirst,
+            balance: 0,
+            name: `Imported ${chainWallets.length + 1}`
+          };
+          chainWallets.push(newWalletEntry);
+          saveUserStore();
+
+          syncWalletBalances(user, targetChain).catch(() => {});
+
+          return ctx.reply(
+            isZh
+              ? `✅ <b>私钥导入成功！</b>\n\n公链: <b>${MainMenu.getChainDisplayName(targetChain)}</b>\n地址: <code>${importedAddress}</code>\n\n<i>🛡️ 原私钥消息已被安全清理。</i>`
+              : `✅ <b>Wallet Imported Successfully!</b>\n\nChain: <b>${MainMenu.getChainDisplayName(targetChain)}</b>\nAddress: <code>${importedAddress}</code>\n\n<i>🛡️ The original secret message was purged.</i>`,
+            { parse_mode: 'HTML' }
+          );
+        } catch (importErr: any) {
+          return ctx.reply(
+            isZh
+              ? `❌ <b>私钥导入失败:</b> ${importErr?.message || '私钥格式无效'}`
+              : `❌ <b>Import Failed:</b> ${importErr?.message || 'Invalid private key format'}`,
+            { parse_mode: 'HTML' }
+          );
+        }
       }
     }
 
@@ -2490,13 +3201,16 @@ bot.on('message:text', async ctx => {
       if (currentWallets.length === 0) {
         await createWalletForUser(user, targetChain);
       }
-      // 同步链上最新真实余额 (例如用户充值的 1 SUI)
+      // 同步链上最新真实原生余额与代币真实持仓
       await syncWalletBalances(user, targetChain);
+      await syncTokenHoldings(user, targetChain, resolvedAddress);
 
     const lowerCa = resolvedAddress.toLowerCase();
     const holdingObj = user.tokenHoldings.get(lowerCa);
     const userHolding = holdingObj && holdingObj.amount > 1e-4 ? holdingObj.amount : 0;
     const userHoldingNative = holdingObj && holdingObj.amount > 1e-4 ? holdingObj.costNative : 0;
+    const boughtNative = holdingObj?.totalBoughtNative ?? userHoldingNative;
+    const soldNative = holdingObj?.totalSoldNative ?? 0;
 
     console.log(`[TokenDetector] Querying token ${resolvedAddress} on chain ${targetChain} for user ${userId} (holding: ${userHolding}, cost: ${userHoldingNative})...`);
     const botUser = bot.botInfo?.username || 'whitecat_doge_yr3ybv_bot';
@@ -2507,8 +3221,8 @@ bot.on('message:text', async ctx => {
       user.lang,
       userHolding,
       userHoldingNative,
-      0,
-      0,
+      boughtNative,
+      soldNative,
       userId,
       botUser
     );

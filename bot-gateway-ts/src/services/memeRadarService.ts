@@ -43,8 +43,8 @@ export interface RadarCandidate {
   sellTax: number;               // 卖出税率
 }
 
-const proxyUri = process.env.SOCKS_PROXY || 'socks5h://127.0.0.1:1080';
-const agent = new SocksProxyAgent(proxyUri);
+const proxyUri = process.env.SOCKS_PROXY && process.env.SOCKS_PROXY !== 'none' ? process.env.SOCKS_PROXY : undefined;
+const agent = proxyUri ? new SocksProxyAgent(proxyUri) : undefined;
 const httpClient = axios.create({
   httpAgent: agent,
   httpsAgent: agent,

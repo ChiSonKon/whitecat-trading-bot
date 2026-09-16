@@ -42,6 +42,8 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+.security-fix-baseline/
+
 
 # 7. 测试与覆盖率报告
 coverage/
@@ -51,3 +53,12 @@ coverage/
 sentry-detector-go/whitecat-sentry-detector
 *.exe
 *.bin
+
+# 9. 内部安全审计、漏洞分析与交接文档 (CRITICAL: 严禁外传)
+audits/
+*.patch
+SECURITY_*.md
+*_HANDOFF*.md
+*AUDIT*.md
+security_patch_*.py
+security_write_handoff.py

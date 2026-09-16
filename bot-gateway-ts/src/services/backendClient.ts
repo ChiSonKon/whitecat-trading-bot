@@ -83,20 +83,23 @@ export class BackendClient {
       const resp = await axios.post(`${this.baseUrl}/api/v1/security/honeypot-check`, {
         chain,
         token_address: tokenAddress
-      });
+      }, { timeout: 8000 });
+      if (!resp.data || typeof resp.data.is_honeypot !== 'boolean' ||
+          typeof resp.data.can_buy !== 'boolean' || typeof resp.data.can_sell !== 'boolean' ||
+          typeof resp.data.risk_level !== 'string') throw new Error('Invalid security check response');
       return resp.data;
     } catch {
       return {
         chain,
         token_address: tokenAddress,
         is_honeypot: false,
-        can_buy: true,
-        can_sell: true,
+        can_buy: false,
+        can_sell: false,
         buy_tax_pct: 0.0,
         sell_tax_pct: 0.0,
         is_mintable: false,
-        risk_level: 'SAFE',
-        reason: '快速模拟通过'
+        risk_level: 'UNKNOWN',
+        reason: '安全检查不可用，无法确认代币风险'
       };
     }
   }

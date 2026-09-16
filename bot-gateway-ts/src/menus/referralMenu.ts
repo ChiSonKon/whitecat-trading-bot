@@ -1,3 +1,4 @@
+import { GITHUB_URL, githubLabel, githubDescription } from '../ui/openSource.js';
 import { InlineKeyboard } from 'grammy';
 import { MainMenu } from './mainMenu.js';
 import { I18nService } from '../services/i18nService.js';
@@ -41,6 +42,7 @@ export class ReferralMenu {
     const totalEarned = stats.totalEarned ?? (claimableAmount + claimedAmount);
 
     return (
+      `${githubDescription(lang)}\n<a href="${GITHUB_URL}">${githubLabel(lang)}</a>\n\n` +
       `${I18nService.t('referral.code', lang)}: <code>${userId}</code>\n` +
       `${I18nService.t('referral.link', lang)}:\n` +
       `<code>${inviteLink}</code>\n\n` +
@@ -61,6 +63,7 @@ export class ReferralMenu {
 
   public static renderKeyboard(lang: string = 'zh-hans'): InlineKeyboard {
     return new InlineKeyboard()
+      .url(githubLabel(lang), GITHUB_URL).row()
       .text(I18nService.btnRefresh(lang), 'referral_refresh')
       .text(I18nService.btnClaimReward(lang), 'claim_referral')
       .row()

@@ -9,12 +9,56 @@ export interface TradeConfig {
   antiMev: boolean;
   buyPresets: number[];
   sellPresets: number[];
+  chainGasTips?: Record<string, number>;
+  chainBuyPresets?: Record<string, number[]>;
 }
 
 export class SettingsMenu {
+  /**
+   * 获取指定链生效的 Gas Tip
+   * 对 ARC 链天然以 USDC 为结算单位，若仍为 0.001 则采用 0.01 USDC 作为推荐 Tip
+   */
+  public static getEffectiveTip(chain: string, config: TradeConfig): number {
+    const c = (chain || '').toLowerCase();
+    if (config.chainGasTips && config.chainGasTips[c] !== undefined) {
+      return config.chainGasTips[c];
+    }
+    if (c === 'arc') {
+      return config.gasTip === 0.001 ? 0.01 : config.gasTip;
+    }
+    return config.gasTip ?? 0.001;
+  }
+
+  /**
+   * 获取指定链生效的买入预设金额档位
+   * ARC 链专属档位: 10, 50, 100, 200, 500 USDC
+   */
+  public static getEffectiveBuyPresets(chain: string, config: TradeConfig): number[] {
+    const c = (chain || '').toLowerCase();
+    if (config.chainBuyPresets && config.chainBuyPresets[c]?.length) {
+      return config.chainBuyPresets[c];
+    }
+    if (c === 'arc') {
+      const isEthDefaults = !config.buyPresets || config.buyPresets.length === 0 || config.buyPresets.every(p => p < 1);
+      return isEthDefaults ? [10, 50, 100, 200, 500] : config.buyPresets;
+    }
+    if (c === 'solana') return [0.1, 0.5, 1, 2, 5];
+    if (c === 'sui') return [0.05, 0.1, 0.2, 0.5, 1];
+    return config.buyPresets || [0.02, 0.05, 0.1, 0.2, 0.5];
+  }
+
+  /**
+   * 格式化 Gas Tip 展示文本
+   */
+  public static formatGasTip(tip: number, chain: string): string {
+    const symbol = MainMenu.getChainNativeSymbol(chain);
+    return `${tip} ${symbol}`;
+  }
+
   public static renderText(chain: string, config: TradeConfig, lang: string = 'en'): string {
     const chainName = MainMenu.getChainDisplayName(chain);
     const nativeSymbol = MainMenu.getChainNativeSymbol(chain);
+    const effectiveTip = this.getEffectiveTip(chain, config);
 
     const modeStr = config.mode === 'fast' ? I18nService.t('settings.fastMode', lang) : I18nService.t('settings.normalMode', lang);
     const mevStr = config.antiMev ? `🟢 ${I18nService.t('settings.enabled', lang)}` : `🔴 ${I18nService.t('settings.disabled', lang)}`;
@@ -22,7 +66,7 @@ export class SettingsMenu {
     return (
       `⚙️ <b>${I18nService.t('settings.title', lang)} (${chainName})</b>\n\n` +
       `${I18nService.t('settings.currentMode', lang)}: <b>${modeStr}</b>\n` +
-      `⛽️ ${I18nService.t('settings.gasTip', lang)}: <b>${config.gasTip} ${nativeSymbol}</b>\n` +
+      `⛽️ ${I18nService.t('settings.gasTip', lang)}: <b>${effectiveTip} ${nativeSymbol}</b>\n` +
       `📉 ${I18nService.t('settings.slippage', lang)}: <b>${config.slippage}%</b>\n` +
       `🛡️ ${I18nService.t('settings.antiMev', lang)}: <b>${mevStr}</b>\n\n` +
       `${I18nService.t('settings.hint', lang)}`
@@ -31,6 +75,7 @@ export class SettingsMenu {
 
   public static renderKeyboard(chain: string, config: TradeConfig, lang: string = 'en'): InlineKeyboard {
     const nativeSymbol = MainMenu.getChainNativeSymbol(chain);
+    const effectiveTip = this.getEffectiveTip(chain, config);
 
     const fastLabel = config.mode === 'fast'
       ? `✅ ${I18nService.t('settings.fastModeShort', lang)}`
@@ -40,21 +85,22 @@ export class SettingsMenu {
       ? `✅ ${I18nService.t('settings.normalModeShort', lang)}`
       : I18nService.t('settings.normalModeShort', lang);
 
-    const tipLabel = `✏️ ${I18nService.t('settings.gasTip', lang)}`;
+    const tipLabel = `✏️ ${I18nService.t('settings.gasTip', lang)} (${effectiveTip} ${nativeSymbol})`;
     const slipLabel = `✏️ ${I18nService.t('settings.slippage', lang)} (${config.slippage}%)`;
     
     // We reuse trade.buy / trade.sell
     const buyPrefix = `✏️ ${I18nService.t('trade.buy', lang)}`;
     const sellPrefix = `✏️ ${I18nService.t('trade.sell', lang)}`;
 
-    const b1 = config.buyPresets[0] || 0.02;
-    const b2 = config.buyPresets[1] || 0.05;
-    const b3 = config.buyPresets[2] || 0.1;
-    const b4 = config.buyPresets[3] || 0.2;
-    const b5 = config.buyPresets[4] || 0.5;
+    const presets = this.getEffectiveBuyPresets(chain, config);
+    const b1 = presets[0] || 0.02;
+    const b2 = presets[1] || 0.05;
+    const b3 = presets[2] || 0.1;
+    const b4 = presets[3] || 0.2;
+    const b5 = presets[4] || 0.5;
 
-    const s1 = config.sellPresets[0] || 50;
-    const s2 = config.sellPresets[1] || 100;
+    const s1 = config.sellPresets?.[0] || 50;
+    const s2 = config.sellPresets?.[1] || 100;
 
     return new InlineKeyboard()
       // Row 1: Mode toggles & Tip

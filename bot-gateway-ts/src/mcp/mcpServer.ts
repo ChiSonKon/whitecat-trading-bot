@@ -4,9 +4,12 @@ import {
   getOrCreateUser,
   getUserWallets,
   syncWalletBalances,
+  syncTokenHoldings,
+  saveUserStore,
   recordUserTransaction,
   processTradeReferralAndFee,
   verifyMcpAuth,
+  isMcpUserAllowed,
   UserState,
   userStore
 } from '../services/userService.js';
@@ -34,6 +37,10 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
 
   // 内部鉴权解析辅助函数
   const resolveUser = (userIdArg?: number, tokenArg?: string): { user?: UserState; error?: string } => {
+    if (options.defaultToken && ((tokenArg && tokenArg !== options.defaultToken) ||
+        (userIdArg && options.defaultUserId && userIdArg !== options.defaultUserId))) {
+      return { error: 'Session identity cannot be changed' };
+    }
     const targetUid = userIdArg || options.defaultUserId || (process.env.WHITECAT_USER_ID ? parseInt(process.env.WHITECAT_USER_ID, 10) : undefined);
     const targetToken = tokenArg || options.defaultToken || process.env.WHITECAT_MCP_TOKEN;
 
@@ -42,6 +49,9 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
       if (!auth.valid || !auth.user) {
         return { error: auth.error || 'MCP 认证失败' };
       }
+      if (!isMcpUserAllowed(auth.user.userId)) {
+        return { error: 'MCP 智能体功能内测中，目前只对内部受邀用户开放。请联系作者 https://t.me/oxbaimao 开启测试' };
+      }
       return { user: auth.user };
     }
 
@@ -49,15 +59,10 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
     if (targetToken) {
       const auth = verifyMcpAuth(targetToken);
       if (auth.valid && auth.user) {
+        if (!isMcpUserAllowed(auth.user.userId)) {
+          return { error: 'MCP 智能体功能内测中，目前只对内部受邀用户开放。请联系作者 https://t.me/oxbaimao 开启测试' };
+        }
         return { user: auth.user };
-      }
-    }
-
-    // 单用户开发调试模式兜底：取第一个已存在用户
-    if (userStore.size > 0) {
-      const firstUser = userStore.values().next().value;
-      if (firstUser) {
-        return { user: firstUser };
       }
     }
 
@@ -80,6 +85,7 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
       if (!user) return { isError: true, content: [{ type: 'text', text: `[Auth Error] ${error}` }] };
 
       await syncWalletBalances(user, user.activeChain);
+      await syncTokenHoldings(user, user.activeChain);
       const wallets = getUserWallets(user, user.activeChain);
 
       const holdings: any[] = [];
@@ -124,9 +130,9 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
 
   server.tool(
     'whitecat_switch_chain',
-    '切换用户的当前活跃交易公链 (支持 bsc, sui, solana, base, ethereum, robinhood, sei, ton, xlayer, aptos)',
+    '切换用户的当前活跃交易公链 (支持 bsc, sui, solana, base, ethereum, robinhood, arc, sei, ton, xlayer, aptos)',
     {
-      chain: z.enum(['bsc', 'sui', 'solana', 'base', 'ethereum', 'robinhood', 'sei', 'ton', 'xlayer', 'aptos']).describe('目标切换公链标识'),
+      chain: z.enum(['bsc', 'sui', 'solana', 'base', 'ethereum', 'robinhood', 'arc', 'sei', 'ton', 'xlayer', 'aptos']).describe('目标切换公链标识'),
       userId: z.number().optional(),
       token: z.string().optional()
     },
@@ -368,11 +374,35 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
           amountNative: amountNative,
           amountToken: result.estimatedAmountOut,
           txHash: result.txHash,
-          status: result.status === 'FAILED' ? 'FAILED' : 'SUCCESS',
+          status: result.status === 'SUCCESS' ? 'SUCCESS' : result.status === 'PENDING' ? 'PENDING' : 'FAILED',
           isRealOnChain: result.isRealOnChain
         });
 
-        processTradeReferralAndFee(user, amountNative);
+        if (result.status === 'SUCCESS') {
+          const lowerCa = fullCa.toLowerCase();
+          const existing = user.tokenHoldings.get(lowerCa);
+          const receivedTokens = result.estimatedAmountOut || 0;
+          if (existing) {
+            existing.amount += receivedTokens;
+            existing.costNative = (existing.costNative || 0) + amountNative;
+            existing.totalBoughtNative = (existing.totalBoughtNative || 0) + amountNative;
+            existing.chain = targetChain;
+          } else {
+            user.tokenHoldings.set(lowerCa, {
+              tokenAddress: fullCa,
+              symbol: result.tokenSymbol || 'TOKEN',
+              name: result.tokenName || 'Token',
+              amount: receivedTokens,
+              costNative: amountNative,
+              totalBoughtNative: amountNative,
+              totalSoldNative: 0,
+              chain: targetChain
+            });
+          }
+          saveUserStore();
+          await syncTokenHoldings(user, targetChain, fullCa);
+          processTradeReferralAndFee(user, amountNative);
+        }
         await syncWalletBalances(user, targetChain);
 
         const txUrl = BillingMenu.getChainTxUrl(targetChain, result.txHash);
@@ -382,7 +412,9 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
               type: 'text',
               text: JSON.stringify(
                 {
-                  success: result.status !== 'FAILED',
+                  success: result.status === 'SUCCESS',
+                  status: result.status,
+                  error: result.error,
                   chain: targetChain,
                   token: result.tokenSymbol,
                   spentNative: `${amountNative} ${MainMenu.getChainNativeSymbol(targetChain)}`,
@@ -438,7 +470,8 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
         return { isError: true, content: [{ type: 'text', text: `在 ${targetChain} 链上未找到可用钱包。` }] };
       }
 
-      // 查询本地持仓
+      // 同步链上最新持仓
+      await syncTokenHoldings(user, targetChain, fullCa);
       const lowerCa = fullCa.toLowerCase();
       const holding = user.tokenHoldings.get(lowerCa);
       const totalHoldingAmount = holding?.amount || 0;
@@ -465,10 +498,14 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
           slippagePct: user.tradeConfig.slippage || 50
         });
 
-        // 扣减持仓
-        if (holding) {
-          holding.amount = Math.max(0, holding.amount - sellAmount);
-          holding.totalSoldNative = (holding.totalSoldNative || 0) + (result.estimatedAmountOut || 0);
+        // 扣减持仓并同步
+        if (result.status === 'SUCCESS') {
+          if (holding) {
+            holding.amount = Math.max(0, holding.amount - sellAmount);
+            holding.totalSoldNative = (holding.totalSoldNative || 0) + (result.estimatedAmountOut || 0);
+          }
+          saveUserStore();
+          await syncTokenHoldings(user, targetChain, fullCa);
         }
 
         recordUserTransaction(user, {
@@ -480,7 +517,7 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
           amountNative: result.estimatedAmountOut,
           amountToken: sellAmount,
           txHash: result.txHash,
-          status: result.status === 'FAILED' ? 'FAILED' : 'SUCCESS',
+          status: result.status === 'SUCCESS' ? 'SUCCESS' : result.status === 'PENDING' ? 'PENDING' : 'FAILED',
           isRealOnChain: result.isRealOnChain
         });
 
@@ -493,7 +530,9 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
               type: 'text',
               text: JSON.stringify(
                 {
-                  success: result.status !== 'FAILED',
+                  success: result.status === 'SUCCESS',
+                  status: result.status,
+                  error: result.error,
                   chain: targetChain,
                   soldTokens: sellAmount,
                   receivedNative: `${result.estimatedAmountOut} ${MainMenu.getChainNativeSymbol(targetChain)}`,
@@ -896,6 +935,7 @@ export function createWhiteCatMcpServer(options: McpServerOptions = {}): McpServ
         { key: 'base', name: 'Base', symbol: 'ETH', dex: 'Uniswap v3' },
         { key: 'ethereum', name: 'Ethereum Mainnet', symbol: 'ETH', dex: 'Uniswap' },
         { key: 'robinhood', name: 'Robinhood Chain', symbol: 'ETH', dex: 'Robinhood DEX' },
+        { key: 'arc', name: 'Arc Network', symbol: 'USDC', dex: 'Uniswap V2 / Arc DEX' },
         { key: 'sei', name: 'Sei EVM', symbol: 'SEI', dex: 'DragonSwap' },
         { key: 'ton', name: 'The Open Network', symbol: 'TON', dex: 'DeDust / STON.fi' },
         { key: 'xlayer', name: 'OKX X Layer', symbol: 'OKB', dex: 'XLayer DEX' },

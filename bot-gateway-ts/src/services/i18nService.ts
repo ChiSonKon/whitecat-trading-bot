@@ -501,6 +501,58 @@ const dict: Record<string, Record<string, string>> = {
     "pl": "🛠 Zobacz 16 narzędzi MCP",
     "de": "🛠 16 MCP-Tools anzeigen"
   },
+  "mcp.restrictedTitle": {
+    "en": "MCP Agent Access (Private Beta)",
+    "zh-hans": "MCP 智能体接入（内测中）",
+    "zh-hant": "MCP 智能體接入（內測中）",
+    "vi": "Kết nối MCP Agent (Thử nghiệm)",
+    "ru": "Доступ к MCP Агенту (Бета)",
+    "ko": "MCP 에이전트 연동 (비공개 베타)",
+    "ja": "MCPエージェント連携（限定公開）",
+    "es": "Acceso Agente MCP (Beta)",
+    "tr": "MCP Ajan Erişimi (Özel Beta)",
+    "pl": "Dostęp Agenta MCP (Beta)",
+    "de": "MCP-Agent-Zugriff (Beta)"
+  },
+  "mcp.restrictedDesc": {
+    "en": "MCP Agent autonomous trading and external agent protocol integration are currently in private internal testing, open exclusively to authorized internal users.",
+    "zh-hans": "MCP 智能体自主交易与外部智能体协议接入功能目前处于内部特邀测试阶段，仅对受邀内部用户开放。",
+    "zh-hant": "MCP 智能體自主交易與外部智能體協議接入功能目前處於內部特邀測試階段，僅對受邀內部用戶開放。",
+    "vi": "Tính năng MCP Agent hiện đang trong giai đoạn thử nghiệm nội bộ, chỉ dành cho người dùng được ủy quyền.",
+    "ru": "Функции MCP-агента в настоящее время находятся на стадии внутреннего закрытого тестирования.",
+    "ko": "MCP 에이전트 연동 기능은 현재 내부 비공개 테스트 중이며, 승인된 테스터에게만 제공됩니다.",
+    "ja": "MCPエージェント連携機能は現在、内部限定テスト中であり、承認されたテスターのみご利用いただけます。",
+    "es": "La función de agente MCP está en pruebas internas privadas, disponible únicamente para usuarios autorizados.",
+    "tr": "MCP Ajan özellikleri şu anda özel dahili test aşamasındadır ve yalnızca yetkili kullanıcılara açıktır.",
+    "pl": "Funkcje agenta MCP są obecnie w fazie wewnętrznych testów beta i są dostępne tylko dla uprawnionych użytkowników.",
+    "de": "MCP-Agenten-Funktionen befinden sich derzeit in einem internen Betatest und stehen nur autorisierten Benutzern zur Verfügung."
+  },
+  "mcp.restrictedPrompt": {
+    "en": "To request beta access, please contact the author:",
+    "zh-hans": "如需开通测试体验，请联系作者开启测试：",
+    "zh-hant": "如需開啟測試體驗，請聯繫作者開啟測試：",
+    "vi": "Để mở quyền thử nghiệm, vui lòng liên hệ tác giả:",
+    "ru": "Для получения доступа свяжитесь с автором:",
+    "ko": "테스트 신청을 원하시면 개발자에게 문의하세요:",
+    "ja": "テストのご利用希望は開発者までお問い合わせください：",
+    "es": "Para solicitar acceso de prueba, contacte al autor:",
+    "tr": "Test erişimi için yazarla iletişime geçin:",
+    "pl": "Aby poprosić o dostęp do testów, skontaktuj się z autorem:",
+    "de": "Für Beta-Zugang kontaktieren Sie bitte den Autor:"
+  },
+  "mcp.btnContactAuthor": {
+    "en": "💬 Contact Author for Testing",
+    "zh-hans": "💬 联系作者开启测试",
+    "zh-hant": "💬 聯繫作者開啟測試",
+    "vi": "💬 Liên hệ tác giả mở test",
+    "ru": "💬 Связаться с автором для теста",
+    "ko": "💬 개발자에게 테스트 신청",
+    "ja": "💬 開発者にテスト申請",
+    "es": "💬 Contactar al autor para probar",
+    "tr": "💬 Test için yazara yazın",
+    "pl": "💬 Skontaktuj się w sprawie testów",
+    "de": "💬 Autor für Test kontaktieren"
+  },
 
   // --- 底部 3 个并排快捷按键 ---
   "dock.mainMenu": {
@@ -2115,6 +2167,254 @@ const dict: Record<string, Record<string, string>> = {
     "pl": "🔄 Przełącz na {chain} i handluj {symbol}",
     "de": "🔄 Zu {chain} wechseln & {symbol} handeln"
   }
+,
+  "msg.enterBuyAmount": {
+      "en": "✏️ Please enter the amount to buy (e.g. <code>0.01</code> {chainSymbol}):\n\n<i>Type /cancel to cancel.</i>",
+      "zh-hans": "✏️ 请输入要买入的金额 (例如 <code>0.01</code> {chainSymbol})：\n\n<i>发送 /cancel 可随时取消。</i>",
+      "zh-hant": "✏️ 請輸入要買入的金額 (例如 <code>0.01</code> {chainSymbol})：\n\n<i>發送 /cancel 可隨時取消。</i>",
+      "vi": "✏️ Vui lòng nhập số tiền muốn mua (vd: <code>0.01</code> {chainSymbol}):\n\n<i>Gõ /cancel để hủy.</i>",
+      "ru": "✏️ Введите сумму покупки (напр. <code>0.01</code> {chainSymbol}):\n\n<i>Отправьте /cancel для отмены.</i>",
+      "ko": "✏️ 매수할 금액을 입력하세요 (예: <code>0.01</code> {chainSymbol}):\n\n<i>취소하려면 /cancel 입력.</i>",
+      "ja": "✏️ 購入金額を入力してください (例: <code>0.01</code> {chainSymbol}):\n\n<i>/cancel でキャンセル可能。</i>",
+      "es": "✏️ Ingrese el monto a comprar (ej. <code>0.01</code> {chainSymbol}):\n\n<i>Escriba /cancel para cancelar.</i>",
+      "tr": "✏️ Almak istediğiniz miktarı girin (örn. <code>0.01</code> {chainSymbol}):\n\n<i>İptal etmek için /cancel yazın.</i>",
+      "pl": "✏️ Wprowadź kwotę zakupu (np. <code>0.01</code> {chainSymbol}):\n\n<i>Wpisz /cancel aby anulować.</i>",
+      "de": "✏️ Kaufbetrag eingeben (z.B. <code>0.01</code> {chainSymbol}):\n\n<i>/cancel zum Abbrechen.</i>"
+  },
+  "msg.enterSellPercent": {
+      "en": "✏️ Please enter the sell percentage (1-100%):\n\n<i>Type /cancel to cancel.</i>",
+      "zh-hans": "✏️ 请输入要卖出的代币比例 (1-100%)：\n\n<i>发送 /cancel 可随时取消。</i>",
+      "zh-hant": "✏️ 請輸入要賣出的代幣比例 (1-100%)：\n\n<i>發送 /cancel 可隨時取消。</i>",
+      "vi": "✏️ Vui lòng nhập tỷ lệ bán (1-100%):\n\n<i>Gõ /cancel để hủy.</i>",
+      "ru": "✏️ Введите процент продажи (1-100%):\n\n<i>Отправьте /cancel для отмены.</i>",
+      "ko": "✏️ 매도 비율(1-100%)을 입력하세요:\n\n<i>취소하려면 /cancel 입력.</i>",
+      "ja": "✏️ 売却割合(1-100%)を入力してください:\n\n<i>/cancel でキャンセル可能。</i>",
+      "es": "✏️ Ingrese el porcentaje de venta (1-100%):\n\n<i>Escriba /cancel para cancelar.</i>",
+      "tr": "✏️ Satış yüzdesini girin (%1-100):\n\n<i>İptal için /cancel yazın.</i>",
+      "pl": "✏️ Wprowadź procent sprzedaży (1-100%):\n\n<i>Wpisz /cancel aby anulować.</i>",
+      "de": "✏️ Verkaufsanteil eingeben (1-100%):\n\n<i>/cancel zum Abbrechen.</i>"
+  },
+  "msg.buyFailed": {
+      "en": "❌ <b>Buy Order Failed</b>\n\nReason: <code>{error}</code>",
+      "zh-hans": "❌ <b>买入交易失败</b>\n\n原因: <code>{error}</code>",
+      "zh-hant": "❌ <b>買入交易失敗</b>\n\n原因: <code>{error}</code>",
+      "vi": "❌ <b>Lệnh mua thất bại</b>\n\nLý do: <code>{error}</code>",
+      "ru": "❌ <b>Покупка не удалась</b>\n\nПричина: <code>{error}</code>",
+      "ko": "❌ <b>매수 실패</b>\n\n이유: <code>{error}</code>",
+      "ja": "❌ <b>購入失敗</b>\n\n理由: <code>{error}</code>",
+      "es": "❌ <b>Compra fallida</b>\n\nRazón: <code>{error}</code>",
+      "tr": "❌ <b>Satın Alma Başarısız</b>\n\nSebep: <code>{error}</code>",
+      "pl": "❌ <b>Kupno nie powiodło się</b>\n\nPowód: <code>{error}</code>",
+      "de": "❌ <b>Kauf fehlgeschlagen</b>\n\nGrund: <code>{error}</code>"
+  },
+  "msg.sellFailed": {
+      "en": "❌ <b>Sell Order Failed</b>\n\nReason: <code>{error}</code>",
+      "zh-hans": "❌ <b>卖出交易失败</b>\n\n原因: <code>{error}</code>",
+      "zh-hant": "❌ <b>賣出交易失敗</b>\n\n原因: <code>{error}</code>",
+      "vi": "❌ <b>Lệnh bán thất bại</b>\n\nLý do: <code>{error}</code>",
+      "ru": "❌ <b>Продажа не удалась</b>\n\nПричина: <code>{error}</code>",
+      "ko": "❌ <b>매도 실패</b>\n\n이유: <code>{error}</code>",
+      "ja": "❌ <b>売却失敗</b>\n\n理由: <code>{error}</code>",
+      "es": "❌ <b>Venta fallida</b>\n\nRazón: <code>{error}</code>",
+      "tr": "❌ <b>Satış Başarısız</b>\n\nSebep: <code>{error}</code>",
+      "pl": "❌ <b>Sprzedaż nie powiodła się</b>\n\nPowód: <code>{error}</code>",
+      "de": "❌ <b>Verkauf fehlgeschlagen</b>\n\nGrund: <code>{error}</code>"
+  },
+  "msg.activeWalletChanged": {
+      "en": "✅ Switched to default wallet: Wallet {index} ({chain})",
+      "zh-hans": "✅ 已切换为主钱包: 钱包 {index} ({chain})",
+      "zh-hant": "✅ 已切換為主錢包: 錢包 {index} ({chain})",
+      "vi": "✅ Đã chuyển sang ví mặc định: Ví {index} ({chain})",
+      "ru": "✅ Переключен основной кошелек: Кошелек {index} ({chain})",
+      "ko": "✅ 기본 지갑으로 전환됨: 지갑 {index} ({chain})",
+      "ja": "✅ デフォルトウォレットに切り替えました: ウォレット {index} ({chain})",
+      "es": "✅ Cambiado a billetera principal: Billetera {index} ({chain})",
+      "tr": "✅ Varsayılan cüzdana geçildi: Cüzdan {index} ({chain})",
+      "pl": "✅ Przełączono na domyślny portfel: Portfel {index} ({chain})",
+      "de": "✅ Standard-Wallet gewechselt: Wallet {index} ({chain})"
+  },
+  "msg.enterLimitOrderSetup": {
+      "en": "🎯 <b>Setup Limit Order</b>\n\nPlease enter the target trigger price and amount/percentage:\n<i>Type /cancel to cancel.</i>",
+      "zh-hans": "🎯 <b>设置限价单</b>\n\n请输入目标触发价格与买卖数量/比例：\n<i>发送 /cancel 可随时取消。</i>",
+      "zh-hant": "🎯 <b>設置限價單</b>\n\n請輸入目標觸發價格與買賣數量/比例：\n<i>發送 /cancel 可隨時取消。</i>",
+      "vi": "🎯 <b>Cài đặt lệnh giới hạn</b>\n\nVui lòng nhập giá kích hoạt và số lượng/tỷ lệ:\n<i>Gõ /cancel để hủy.</i>",
+      "ru": "🎯 <b>Настройка лимитного ордера</b>\n\nВведите цену срабатывания и сумму/процент:\n<i>Отправьте /cancel для отмены.</i>",
+      "ko": "🎯 <b>지정가 주문 설정</b>\n\n목표 트리거 가격 및 수량/비율을 입력하세요:\n<i>취소하려면 /cancel 입력.</i>",
+      "ja": "🎯 <b>指値注文の設定</b>\n\nトリガー価格と数量/割合を入力してください:\n<i>/cancel でキャンセル可能。</i>",
+      "es": "🎯 <b>Configurar orden límite</b>\n\nIngrese el precio de activación y cantidad/porcentaje:\n<i>Escriba /cancel para cancelar.</i>",
+      "tr": "🎯 <b>Limit Emir Ayarla</b>\n\nHedef tetikleyici fiyatı ve miktarı girin:\n<i>İptal için /cancel yazın.</i>",
+      "pl": "🎯 <b>Ustaw zlecenie limit</b>\n\nWprowadź cenę aktywacji i ilość/procent:\n<i>Wpisz /cancel aby anulować.</i>",
+      "de": "🎯 <b>Limit-Order einrichten</b>\n\nTriggerpreis und Betrag/Prozent eingeben:\n<i>/cancel zum Abbrechen.</i>"
+  },
+  "msg.faucetSuccess": {
+      "en": "🎉 <b>Testnet Faucet Received!</b>\n\n📍 Address: <code>{address}</code>\n🌐 Network: <b>{chain}</b>\n💰 Deposited: <b>+{amt} {symbol}</b>\n💳 Current Balance: <b>{bal} {symbol}</b>",
+      "zh-hans": "🎉 <b>测试代币已到账！</b>\n\n📍 钱包地址: <code>{address}</code>\n🌐 当前网络: <b>{chain}</b>\n💰 充值到账: <b>+{amt} {symbol}</b>\n💳 钱包余额: <b>{bal} {symbol}</b>",
+      "zh-hant": "🎉 <b>測試代幣已到賬！</b>\n\n📍 錢包地址: <code>{address}</code>\n🌐 當前網絡: <b>{chain}</b>\n💰 充值到賬: <b>+{amt} {symbol}</b>\n💳 錢包餘額: <b>{bal} {symbol}</b>",
+      "vi": "🎉 <b>Đã nhận token thử nghiệm!</b>\n\n📍 Địa chỉ: <code>{address}</code>\n🌐 Mạng: <b>{chain}</b>\n💰 Nạp: <b>+{amt} {symbol}</b>\n💳 Số dư: <b>{bal} {symbol}</b>",
+      "ru": "🎉 <b>Тестовые токены получены!</b>\n\n📍 Адрес: <code>{address}</code>\n🌐 Сеть: <b>{chain}</b>\n💰 Пополнение: <b>+{amt} {symbol}</b>\n💳 Баланс: <b>{bal} {symbol}</b>",
+      "ko": "🎉 <b>테스트 토큰 수령 완료!</b>\n\n📍 주소: <code>{address}</code>\n🌐 네트워크: <b>{chain}</b>\n💰 입금: <b>+{amt} {symbol}</b>\n💳 잔액: <b>{bal} {symbol}</b>",
+      "ja": "🎉 <b>テストトークンを受信しました！</b>\n\n📍 アドレス: <code>{address}</code>\n🌐 ネットワーク: <b>{chain}</b>\n💰 入金: <b>+{amt} {symbol}</b>\n💳 残高: <b>{bal} {symbol}</b>",
+      "es": "🎉 <b>¡Tokens de prueba recibidos!</b>\n\n📍 Dirección: <code>{address}</code>\n🌐 Red: <b>{chain}</b>\n💰 Depositado: <b>+{amt} {symbol}</b>\n💳 Saldo: <b>{bal} {symbol}</b>",
+      "tr": "🎉 <b>Test Tokenları Alındı!</b>\n\n📍 Adres: <code>{address}</code>\n🌐 Ağ: <b>{chain}</b>\n💰 Yatırılan: <b>+{amt} {symbol}</b>\n💳 Bakiye: <b>{bal} {symbol}</b>",
+      "pl": "🎉 <b>Otrzymano tokeny testowe!</b>\n\n📍 Adres: <code>{address}</code>\n🌐 Sieć: <b>{chain}</b>\n💰 Wpłata: <b>+{amt} {symbol}</b>\n💳 Saldo: <b>{bal} {symbol}</b>",
+      "de": "🎉 <b>Test-Token erhalten!</b>\n\n📍 Adresse: <code>{address}</code>\n🌐 Netzwerk: <b>{chain}</b>\n💰 Eingezahlt: <b>+{amt} {symbol}</b>\n💳 Guthaben: <b>{bal} {symbol}</b>"
+  },
+  "msg.gasTipUpdated": {
+      "en": "⚡ Priority gas tip updated to: <b>{tip} {symbol}</b>",
+      "zh-hans": "⚡ 优先 Gas 小费已更新为: <b>{tip} {symbol}</b>",
+      "zh-hant": "⚡ 優先 Gas 小費已更新為: <b>{tip} {symbol}</b>",
+      "vi": "⚡ Phí ưu tiên gas đã cập nhật: <b>{tip} {symbol}</b>",
+      "ru": "⚡ Приоритетная комиссия обновлена: <b>{tip} {symbol}</b>",
+      "ko": "⚡ 우선 가스 팁이 업데이트됨: <b>{tip} {symbol}</b>",
+      "ja": "⚡ 優先ガスチップを更新しました: <b>{tip} {symbol}</b>",
+      "es": "⚡ Propina de gas prioritaria actualizada: <b>{tip} {symbol}</b>",
+      "tr": "⚡ Öncelikli gas bahşişi güncellendi: <b>{tip} {symbol}</b>",
+      "pl": "⚡ Zaktualizowano priorytetowy napiwek gas: <b>{tip} {symbol}</b>",
+      "de": "⚡ Prioritäts-Gas-Tip aktualisiert auf: <b>{tip} {symbol}</b>"
+  },
+  "msg.insufficientBalanceRetry": {
+      "en": "⚠️ Insufficient balance! Available: <b>{balance} {symbol}</b>, please enter a lower amount or type <code>all</code>:",
+      "zh-hans": "⚠️ 钱包余额不足！当前可用: <b>{balance} {symbol}</b>，请重新输入或输入 <code>all</code> 全部转出：",
+      "zh-hant": "⚠️ 錢包餘額不足！當前可用: <b>{balance} {symbol}</b>，請重新輸入或輸入 <code>all</code> 全部轉出：",
+      "vi": "⚠️ Số dư không đủ! Khả dụng: <b>{balance} {symbol}</b>, vui lòng nhập số nhỏ hơn hoặc gõ <code>all</code>:",
+      "ru": "⚠️ Недостаточно средств! Доступно: <b>{balance} {symbol}</b>, введите меньшую сумму или <code>all</code>:",
+      "ko": "⚠️ 잔액 부족! 사용 가능: <b>{balance} {symbol}</b>, 더 적은 금액을 입력하거나 <code>all</code> 입력:",
+      "ja": "⚠️ 残高不足です！利用可能: <b>{balance} {symbol}</b>、少ない金額を入力するか <code>all</code> と入力してください:",
+      "es": "⚠️ ¡Saldo insuficiente! Disponible: <b>{balance} {symbol}</b>, ingrese un monto menor o <code>all</code>:",
+      "tr": "⚠️ Yetersiz bakiye! Mevcut: <b>{balance} {symbol}</b>, lütfen daha düşük bir miktar girin veya <code>all</code> yazın:",
+      "pl": "⚠️ Niewystarczające saldo! Dostępne: <b>{balance} {symbol}</b>, wprowadź mniejszą kwotę lub <code>all</code>:",
+      "de": "⚠️ Unzureichendes Guthaben! Verfügbar: <b>{balance} {symbol}</b>, bitte geringeren Betrag oder <code>all</code> eingeben:"
+  },
+  "msg.invalidNumberOrAll": {
+      "en": "⚠️ Please enter a valid number or type <code>all</code>:",
+      "zh-hans": "⚠️ 请输入有效数字金额，或输入 <code>all</code> 全部转出：",
+      "zh-hant": "⚠️ 請輸入有效數字金額，或輸入 <code>all</code> 全部轉出：",
+      "vi": "⚠️ Vui lòng nhập số hợp lệ hoặc gõ <code>all</code>:",
+      "ru": "⚠️ Введите корректное число или <code>all</code>:",
+      "ko": "⚠️ 유효한 숫자를 입력하거나 <code>all</code>을 입력하세요:",
+      "ja": "⚠️ 有効な数字を入力するか、<code>all</code> と入力してください:",
+      "es": "⚠️ Ingrese un número válido o escriba <code>all</code>:",
+      "tr": "⚠️ Lütfen geçerli bir sayı girin veya <code>all</code> yazın:",
+      "pl": "⚠️ Wprowadź poprawną liczbę lub wpisz <code>all</code>:",
+      "de": "⚠️ Bitte gültige Zahl eingeben oder <code>all</code> tippen:"
+  },
+  "msg.invalidRecipient": {
+      "en": "⚠️ Invalid recipient address format. Please check and re-enter:",
+      "zh-hans": "⚠️ 接收地址格式不正确，请核对后重新输入：",
+      "zh-hant": "⚠️ 接收地址格式不正確，請核對後重新輸入：",
+      "vi": "⚠️ Sai định dạng địa chỉ nhận. Vui lòng kiểm tra lại:",
+      "ru": "⚠️ Неверный формат адреса получателя. Проверьте и введите снова:",
+      "ko": "⚠️ 잘못된 수신자 주소 형식입니다. 다시 입력하세요:",
+      "ja": "⚠️ 受取人アドレスの形式が無効です。再入力してください:",
+      "es": "⚠️ Formato de dirección de destino inválido. Verifique y reintente:",
+      "tr": "⚠️ Geçersiz alıcı adresi biçimi. Lütfen kontrol edip tekrar girin:",
+      "pl": "⚠️ Nieprawidłowy format adresu odbiorcy. Sprawdź i wpisz ponownie:",
+      "de": "⚠️ Ungültiges Empfängeradressformat. Bitte prüfen und erneut eingeben:"
+  },
+  "msg.invalidTransferAmount": {
+      "en": "⚠️ Please enter a valid transfer amount:",
+      "zh-hans": "⚠️ 请输入有效的转账金额：",
+      "zh-hant": "⚠️ 請輸入有效的轉賬金額：",
+      "vi": "⚠️ Vui lòng nhập số lượng chuyển hợp lệ:",
+      "ru": "⚠️ Введите корректную сумму перевода:",
+      "ko": "⚠️ 유효한 전송 금액을 입력하세요:",
+      "ja": "⚠️ 有効な送金金額を入力してください:",
+      "es": "⚠️ Ingrese un monto de transferencia válido:",
+      "tr": "⚠️ Lütfen geçerli bir transfer miktarı girin:",
+      "pl": "⚠️ Wprowadź poprawną kwotę przelewu:",
+      "de": "⚠️ Bitte gültigen Überweisungsbetrag eingeben:"
+  },
+  "msg.pnlCard": {
+      "en": "📊 <b>{tokenSymbol} PnL Card</b>\nReturn: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "zh-hans": "📊 <b>{tokenSymbol} 盈亏卡片</b>\n收益率: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "zh-hant": "📊 <b>{tokenSymbol} 盈虧卡片</b>\n收益率: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "vi": "📊 <b>Thẻ PnL {tokenSymbol}</b>\nLợi nhuận: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "ru": "📊 <b>Карточка PnL {tokenSymbol}</b>\nДоходность: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "ko": "📊 <b>{tokenSymbol} 수익률 카드</b>\n수익률: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "ja": "📊 <b>{tokenSymbol} 損益カード</b>\n収益率: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "es": "📊 <b>Tarjeta PnL {tokenSymbol}</b>\nRendimiento: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "tr": "📊 <b>{tokenSymbol} Kâr/Zarar Kartı</b>\nGetiri: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "pl": "📊 <b>Karta PnL {tokenSymbol}</b>\nZwrot: <b>{pct}%</b> ({pnl} {chainSymbol})",
+      "de": "📊 <b>{tokenSymbol} GuV-Karte</b>\nRendite: <b>{pct}%</b> ({pnl} {chainSymbol})"
+  },
+  "msg.recipientRecorded": {
+      "en": "📥 <b>Recipient address recorded:</b>\n<code>{toAddr}</code>\n\n✏️ Please enter the token amount to transfer:",
+      "zh-hans": "📥 <b>收款地址已记录:</b>\n<code>{toAddr}</code>\n\n✏️ 请输入要转账的代币数量：",
+      "zh-hant": "📥 <b>收款地址已記錄:</b>\n<code>{toAddr}</code>\n\n✏️ 請輸入要轉賬的代幣數量：",
+      "vi": "📥 <b>Địa chỉ người nhận đã ghi lại:</b>\n<code>{toAddr}</code>\n\n✏️ Vui lòng nhập số lượng token cần chuyển:",
+      "ru": "📥 <b>Адрес получателя записан:</b>\n<code>{toAddr}</code>\n\n✏️ Введите количество токенов для перевода:",
+      "ko": "📥 <b>수신 주소 기록됨:</b>\n<code>{toAddr}</code>\n\n✏️ 전송할 토큰 수량을 입력하세요:",
+      "ja": "📥 <b>受取人アドレスを記録しました:</b>\n<code>{toAddr}</code>\n\n✏️ 送金するトークン数量を入力してください:",
+      "es": "📥 <b>Dirección del destinatario registrada:</b>\n<code>{toAddr}</code>\n\n✏️ Ingrese la cantidad de token a transferir:",
+      "tr": "📥 <b>Alıcı adresi kaydedildi:</b>\n<code>{toAddr}</code>\n\n✏️ Transfer edilecek token miktarını girin:",
+      "pl": "📥 <b>Zapisano adres odbiorcy:</b>\n<code>{toAddr}</code>\n\n✏️ Wprowadź ilość tokenów do przesłania:",
+      "de": "📥 <b>Empfängeradresse gespeichert:</b>\n<code>{toAddr}</code>\n\n✏️ Bitte zu überweisende Token-Menge eingeben:"
+  },
+  "msg.smartMoneyAdded": {
+      "en": "🎯 <b>Smart Money Wallet Added!</b>\n\nAddress: <code>{text}</code>\nTotal Monitored: <b>{count}</b>",
+      "zh-hans": "🎯 <b>聪明钱地址已添加！</b>\n\n监控地址: <code>{text}</code>\n当前监控总数: <b>{count}</b> 个",
+      "zh-hant": "🎯 <b>聰明錢地址已添加！</b>\n\n監控地址: <code>{text}</code>\n當前監控總數: <b>{count}</b> 個",
+      "vi": "🎯 <b>Đã thêm ví Smart Money!</b>\n\nĐịa chỉ: <code>{text}</code>\nTổng theo dõi: <b>{count}</b>",
+      "ru": "🎯 <b>Кошелек умных денег добавлен!</b>\n\nАдрес: <code>{text}</code>\nВсего отслеживается: <b>{count}</b>",
+      "ko": "🎯 <b>스마트 머니 지갑 추가됨!</b>\n\n주소: <code>{text}</code>\n총 모니터링: <b>{count}</b>개",
+      "ja": "🎯 <b>スマートマネーウォレットを追加しました！</b>\n\nアドレス: <code>{text}</code>\n監視数: <b>{count}</b> 件",
+      "es": "🎯 <b>¡Billetera Smart Money añadida!</b>\n\nDirección: <code>{text}</code>\nTotal monitoreadas: <b>{count}</b>",
+      "tr": "🎯 <b>Akıllı Para Cüzdanı Eklendi!</b>\n\nAdres: <code>{text}</code>\nToplam Takip: <b>{count}</b>",
+      "pl": "🎯 <b>Dodano portfel Smart Money!</b>\n\nAdres: <code>{text}</code>\nŁącznie monitorowanych: <b>{count}</b>",
+      "de": "🎯 <b>Smart Money Wallet hinzugefügt!</b>\n\nAdresse: <code>{text}</code>\nGesamt überwacht: <b>{count}</b>"
+  },
+  "msg.tokenAddrRecorded": {
+      "en": "🪙 <b>Token CA recorded:</b>\n<code>{ca}</code>\n\n✏️ Please enter the recipient wallet address:",
+      "zh-hans": "🪙 <b>代币合约 (CA) 已记录:</b>\n<code>{ca}</code>\n\n✏️ 请输入接收钱包地址：",
+      "zh-hant": "🪙 <b>代幣合約 (CA) 已記錄:</b>\n<code>{ca}</code>\n\n✏️ 請輸入接收錢包地址：",
+      "vi": "🪙 <b>Đã ghi nhận CA token:</b>\n<code>{ca}</code>\n\n✏️ Vui lòng nhập địa chỉ ví người nhận:",
+      "ru": "🪙 <b>Контракт токена записан:</b>\n<code>{ca}</code>\n\n✏️ Введите адрес кошелька получателя:",
+      "ko": "🪙 <b>토큰 계약 주소(CA) 기록됨:</b>\n<code>{ca}</code>\n\n✏️ 수신 지갑 주소를 입력하세요:",
+      "ja": "🪙 <b>トークンCAを記録しました:</b>\n<code>{ca}</code>\n\n✏️ 受取人ウォレットアドレスを入力してください:",
+      "es": "🪙 <b>CA del token registrada:</b>\n<code>{ca}</code>\n\n✏️ Ingrese la dirección de la billetera del destinatario:",
+      "tr": "🪙 <b>Token sözleşmesi kaydedildi:</b>\n<code>{ca}</code>\n\n✏️ Alıcı cüzdan adresini girin:",
+      "pl": "🪙 <b>Zapisano kontrakt tokena:</b>\n<code>{ca}</code>\n\n✏️ Wprowadź adres portfela odbiorcy:",
+      "de": "🪙 <b>Token-Contract gespeichert:</b>\n<code>{ca}</code>\n\n✏️ Bitte Empfänger-Wallet-Adresse eingeben:"
+  },
+  "msg.tp10xOrderPlaced": {
+      "en": "🎯 <b>10x Take-Profit Limit Order Placed!</b>\nTarget: Automatically sell 100% position when price reaches 10x.",
+      "zh-hans": "🎯 <b>十倍清仓止盈单已挂出！</b>\n目标: 当代币价格上涨达到 10 倍时，自动全额卖出 100% 仓位锁定利润。可在挂单管理中查看或撤销。",
+      "zh-hant": "🎯 <b>十倍清倉止盈單已掛出！</b>\n目標: 當代幣價格上漲達到 10 倍時，自動全額賣出 100% 倉位鎖定利潤。可在掛單管理中查看或撤銷。",
+      "vi": "🎯 <b>Lệnh chốt lời 10x đã đặt!</b>\nMục tiêu: Tự động bán 100% vị thế khi giá đạt 10x.",
+      "ru": "🎯 <b>Лимитный ордер тейк-профит 10x размещен!</b>\nЦель: Автоматически продать 100% позиции при росте цены в 10 раз.",
+      "ko": "🎯 <b>10배 익절 지정가 주문 등록 완료!</b>\n목표: 가격이 10배에 도달하면 100% 전량 자동 매도.",
+      "ja": "🎯 <b>10倍利確指値注文を出しました！</b>\n目標: 価格が10倍に達した時、保有量を100%自動売却。",
+      "es": "🎯 <b>¡Orden límite Take-Profit 10x colocada!</b>\nObjetivo: Vender 100% cuando el precio alcance 10x.",
+      "tr": "🎯 <b>10x Kâr Al Limit Emri Verildi!</b>\nHedef: Fiyat 10 kata ulaştığında %100 pozisyonu otomatik sat.",
+      "pl": "🎯 <b>Złożono zlecenie Take-Profit 10x!</b>\nCel: Automatyczna sprzedaż 100% pozycji przy 10-krotnym wzroście.",
+      "de": "🎯 <b>10x Take-Profit Limit-Order platziert!</b>\nZiel: Automatisch 100% verkaufen, wenn der Preis 10x erreicht."
+  },
+  "msg.tpOrderPlaced": {
+      "en": "🎯 <b>2x Take-Profit (Principal Secured) Order Placed!</b>\nTarget: Automatically sell 50% position when price doubles (+100%) to secure original capital.",
+      "zh-hans": "🎯 <b>翻倍出本止盈单已挂出！</b>\n目标: 当代币价格翻倍 (+100%) 时，自动卖出 50% 仓位收回本金，零成本持有剩余代币。可在挂单管理中查看或撤单。",
+      "zh-hant": "🎯 <b>翻倍出本止盈單已掛出！</b>\n目標: 當代幣價格翻倍 (+100%) 時，自動賣出 50% 倉位收回本金，零成本持有剩餘代幣。可在掛單管理中查看或撤單。",
+      "vi": "🎯 <b>Lệnh chốt lời hoàn vốn 2x đã đặt!</b>\nMục tiêu: Tự động bán 50% vị thế khi giá tăng gấp đôi (+100%) để thu hồi vốn.",
+      "ru": "🎯 <b>Ордер тейк-профит 2x (вывод тела) размещен!</b>\nЦель: Продать 50% при росте на +100% для возврата депозита.",
+      "ko": "🎯 <b>원금 회수 2배 익절 주문 등록 완료!</b>\n목표: 가격이 2배(+100%)가 되면 50% 매도하여 원금 회수.",
+      "ja": "🎯 <b>元本回収2倍利確注文を出しました！</b>\n目標: 価格が2倍(+100%)になった時に50%売却して元本を回収。",
+      "es": "🎯 <b>¡Orden Take-Profit 2x colocada!</b>\nObjetivo: Vender 50% cuando el precio se duplique para recuperar capital.",
+      "tr": "🎯 <b>2x Ana Para Kurtarma Emri Verildi!</b>\nHedef: Fiyat 2 katına çıktığında (%+100) ana parayı kurtarmak için %50 sat.",
+      "pl": "🎯 <b>Złożono zlecenie Take-Profit 2x!</b>\nCel: Automatyczna sprzedaż 50% przy podwojeniu ceny (+100%) w celu odzyskania kapitału.",
+      "de": "🎯 <b>2x Take-Profit (Kapitalsicherung) Order platziert!</b>\nZiel: Automatisch 50% verkaufen bei Verdopplung (+100%)."
+  },
+  "trade.enterTokenAddress": {
+      "en": "🔍 Please send the target token contract address (CA) for instant market analysis and turbo trading:",
+      "zh-hans": "🔍 请在此发送目标代币合约地址 (CA) 进行快速买卖与深度解析：",
+      "zh-hant": "🔍 請在此發送目標代幣合約地址 (CA) 進行快速買賣與深度解析：",
+      "vi": "🔍 Vui lòng gửi địa chỉ hợp đồng (CA) để phân tích thị trường và giao dịch siêu tốc:",
+      "ru": "🔍 Отправьте контракт токена (CA) для анализа и быстрой торговли:",
+      "ko": "🔍 빠른 거래 및 시장 분석을 위해 목표 토큰 계약 주소(CA)를 입력하세요:",
+      "ja": "🔍 瞬時市場分析と高速取引のため、トークンCAを送信してください:",
+      "es": "🔍 Envíe la dirección de contrato (CA) para análisis de mercado y trading ultra rápido:",
+      "tr": "🔍 Anında piyasa analizi ve hızlı işlem için token sözleşme adresini (CA) gönderin:",
+      "pl": "🔍 Wyślij adres kontraktu tokena (CA), aby przeprowadzić analizę rynku i szybki handel:",
+      "de": "🔍 Senden Sie die Token-Vertragsadresse (CA) für Marktanalyse und Schnellhandel:"
+  }
 };
 
 export class I18nService {
@@ -2190,7 +2490,9 @@ export class I18nService {
     const titleTrans = dict['dock.mainMenu'];
     if (titleTrans) {
       for (const langCode of Object.keys(titleTrans)) {
-        if (text === titleTrans[langCode]) return true;
+        const val = titleTrans[langCode];
+        if (text === val) return true;
+        if (text === val.replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '').trim()) return true;
       }
     }
 
@@ -2211,7 +2513,9 @@ export class I18nService {
     const titleTrans = dict['dock.asset'];
     if (titleTrans) {
       for (const langCode of Object.keys(titleTrans)) {
-        if (text === titleTrans[langCode]) return true;
+        const val = titleTrans[langCode];
+        if (text === val) return true;
+        if (text === val.replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '').trim()) return true;
       }
     }
 
@@ -2232,7 +2536,9 @@ export class I18nService {
     const titleTrans = dict['dock.wallet'];
     if (titleTrans) {
       for (const langCode of Object.keys(titleTrans)) {
-        if (text === titleTrans[langCode]) return true;
+        const val = titleTrans[langCode];
+        if (text === val) return true;
+        if (text === val.replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '').trim()) return true;
       }
     }
 
@@ -2482,6 +2788,10 @@ export class I18nService {
 
   public static btnMcp(lang: string): string {
     return this.t('btn.mcp', lang);
+  }
+
+  public static btnMcpContactAuthor(lang: string): string {
+    return this.t('mcp.btnContactAuthor', lang);
   }
 
   public static btnRadar(lang: string): string {

@@ -63,24 +63,54 @@ impl HoneypotSimulator {
             "id": 10
         });
 
-        let mut is_contract = true;
+        let mut rpc_success = false;
         let mut bytecode = String::new();
         if let Ok(resp) = self.http_client.post(rpc_url).json(&code_payload).send().await {
             if let Ok(json_res) = resp.json::<serde_json::Value>().await {
                 if let Some(code_hex) = json_res["result"].as_str() {
                     bytecode = code_hex.to_lowercase();
-                    if code_hex == "0x" || code_hex.is_empty() {
-                        is_contract = false;
-                    }
+                    rpc_success = true;
                 }
             }
+        }
+
+        if !rpc_success {
+            return Ok(HoneypotAnalysisResult {
+                chain: chain.to_string(),
+                token_address: clean_address,
+                is_honeypot: false,
+                can_buy: false,
+                can_sell: false,
+                buy_tax_pct: 0.0,
+                sell_tax_pct: 0.0,
+                is_mintable: false,
+                is_blacklisted: false,
+                risk_level: "UNKNOWN".to_string(),
+                reason: "RPC unreachable or timed out".to_string(),
+            });
+        }
+
+        if bytecode == "0x" || bytecode.is_empty() {
+            return Ok(HoneypotAnalysisResult {
+                chain: chain.to_string(),
+                token_address: clean_address,
+                is_honeypot: false,
+                can_buy: false,
+                can_sell: false,
+                buy_tax_pct: 0.0,
+                sell_tax_pct: 0.0,
+                is_mintable: false,
+                is_blacklisted: false,
+                risk_level: "NO_CODE".to_string(),
+                reason: "No bytecode at address".to_string(),
+            });
         }
 
         // 3. 字节码特征扫描 (常见恶意 Honeypot / Rug 函数签名)
         // 比如: blacklist(address), setTaxRate(uint256), mint(address,uint256)
         let is_mintable = bytecode.contains("40c10f19"); // mint(address,uint256)
         let has_blacklist = bytecode.contains("f9f0868f") || bytecode.contains("blacklist");
-        let has_trading_lock = bytecode.contains("enabletrading") || bytecode.contains("tradingopen");
+        let _has_trading_lock = bytecode.contains("enabletrading") || bytecode.contains("tradingopen");
 
         // 4. 模拟买入/卖出沙盒逻辑
         // 在无真实上架或模拟环境中，评估流动性与买卖税
@@ -102,8 +132,6 @@ impl HoneypotSimulator {
             "貔貅警告: 检测到无法卖出或卖税超过 50%！".to_string()
         } else if risk_level == "HIGH" {
             "高风险提示: 合约包含黑名单或转账拦截函数，请谨慎开枪！".to_string()
-        } else if !is_contract && !bytecode.is_empty() {
-            "警告: 目标地址未部署字节码，非有效代币合约！".to_string()
         } else {
             "检测通过: 合约可正常买卖，未发现恶意限制逻辑。".to_string()
         };

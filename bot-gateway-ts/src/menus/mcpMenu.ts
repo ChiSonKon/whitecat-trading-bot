@@ -23,11 +23,12 @@ export class McpMenu {
 
     const botDir = process.cwd();
     const stdioEntry = path.join(botDir, 'dist', 'mcp', 'index.js');
+    const publicHost = process.env.MCP_PUBLIC_HOST || process.env.SERVER_IP || '127.0.0.1';
 
     return (
       `🤖 <b>${title}</b>\n\n` +
       `📡 <b>${I18nService.t('mcp.serverStatus', lang)}</b>: ${statusLine}\n` +
-      `🌐 <b>HTTP/SSE 端点</b>: <code>http://127.0.0.1:${port}/sse</code>\n\n` +
+      `🌐 <b>HTTP/SSE 端点</b>: <code>http://${publicHost}:${port}/sse</code>\n\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `🆔 <b>${uidLabel}</b>: <code>${user.userId}</code>\n` +
       `🔑 <b>${tokenLabel}</b>:\n<code>${user.mcpToken || '未生成'}</code>\n\n` +
@@ -63,36 +64,66 @@ export class McpMenu {
     return kb;
   }
 
+  /**
+   * 渲染 MCP 内测权限限制提示文案
+   * 若配置了 MCP_ALLOWED_USERS 白名单，未授权用户显示联系开启测试
+   */
+  public static renderAccessRestrictedText(lang: string = 'en'): string {
+    const title = I18nService.t('mcp.restrictedTitle', lang);
+    const desc = I18nService.t('mcp.restrictedDesc', lang);
+    const prompt = I18nService.t('mcp.restrictedPrompt', lang);
+
+    return (
+      `🤖 <b>${title}</b>\n\n` +
+      `${desc}\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `👉 <b>${prompt}</b>\n` +
+      `联系作者 <a href="https://t.me/oxbaimao">https://t.me/oxbaimao</a> 开启测试\n` +
+      `━━━━━━━━━━━━━━━━━━`
+    );
+  }
+
+  /**
+   * 渲染 MCP 权限限制界面按键 (直达作者联系方式及返回主菜单)
+   */
+  public static renderAccessRestrictedKeyboard(lang: string = 'en'): InlineKeyboard {
+    const kb = new InlineKeyboard();
+    kb.url(I18nService.btnMcpContactAuthor(lang), 'https://t.me/oxbaimao').row();
+    kb.text(I18nService.btnBack(lang), 'menu_main');
+    return kb;
+  }
+
   public static renderClaudeConfig(user: UserState, port: number = 38088): string {
     const stdioEntry = path.join(process.cwd(), 'dist', 'mcp', 'index.js');
     const config = {
       mcpServers: {
-        "whitecat-trading-bot": {
-          command: "node",
+        whitecat: {
+          command: 'node',
           args: [
             stdioEntry,
             `--user=${user.userId}`,
             `--token=${user.mcpToken}`
           ],
           env: {
-            WHITECAT_USER_ID: String(user.userId),
             WHITECAT_MCP_TOKEN: user.mcpToken
           }
         }
       }
     };
 
+    const publicHost = process.env.MCP_PUBLIC_HOST || process.env.SERVER_IP || '127.0.0.1';
     return (
       `📋 <b>Claude Desktop 配置文件 (claude_desktop_config.json)</b>：\n\n` +
       `将以下配置复制并粘贴到您的 Claude Desktop 配置文件中：\n\n` +
       `<pre><code class="language-json">${JSON.stringify(config, null, 2)}</code></pre>\n\n` +
       `💡 也可以选择 SSE 远程连接模式：\n` +
-      `<code>http://127.0.0.1:${port}/sse?user=${user.userId}&token=${user.mcpToken}</code>`
+      `<code>http://${publicHost}:${port}/sse?user=${user.userId}&token=${user.mcpToken}</code>`
     );
   }
 
   public static renderCursorConfig(user: UserState, port: number = 38088): string {
     const stdioEntry = path.join(process.cwd(), 'dist', 'mcp', 'index.js');
+    const publicHost = process.env.MCP_PUBLIC_HOST || process.env.SERVER_IP || '127.0.0.1';
     return (
       `📋 <b>Cursor / Antigravity / Cline 智能体接入配置</b>：\n\n` +
       `<b>方式 1：标准 STDIO 命令行启动（推荐本地）</b>\n` +
@@ -100,7 +131,7 @@ export class McpMenu {
       `• 参数 (Args): <code>${stdioEntry} --user=${user.userId} --token=${user.mcpToken}</code>\n\n` +
       `<b>方式 2：HTTP / SSE 模式（支持远程与多智能体）</b>\n` +
       `• 类型 (Type): <code>sse</code>\n` +
-      `• URL: <code>http://127.0.0.1:${port}/sse?user=${user.userId}&token=${user.mcpToken}</code>\n\n` +
+      `• URL: <code>http://${publicHost}:${port}/sse?user=${user.userId}&token=${user.mcpToken}</code>\n\n` +
       `配置保存后，您的 AI 助手将在聊天对话中直接获取白猫打狗交易与风控工具！`
     );
   }

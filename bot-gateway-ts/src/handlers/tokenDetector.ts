@@ -15,6 +15,8 @@ export function getChainAccountUrl(chain: string, address: string): string {
   if (c === 'aptos') return `https://explorer.aptoslabs.com/account/${address}?network=mainnet`;
   if (c === 'xlayer') return `https://www.okx.com/zh-hans/explorer/xlayer/address/${address}`;
   if (c === 'sei') return `https://seitrace.com/address/${address}`;
+  if (c === 'robinhood') return `https://explorer.mainnet.chain.robinhood.com/address/${address}`;
+  if (c === 'arc') return `https://arc-scan.org/address/${address}`;
   return `https://bscscan.com/address/${address}`;
 }
 
@@ -61,7 +63,7 @@ export class TokenDetector {
 
   public static isEvmChain(chain: string): boolean {
     const c = chain.toLowerCase();
-    return ['ethereum', 'bsc', 'base', 'robinhood', 'xlayer', 'sei'].includes(c);
+    return ['ethereum', 'bsc', 'base', 'robinhood', 'xlayer', 'sei', 'arc'].includes(c);
   }
 
   public static isChainCompatible(chain: string, detectedType: 'evm' | 'solana' | 'sui' | 'aptos' | 'ton' | null): boolean {
@@ -113,13 +115,14 @@ export class TokenDetector {
     boughtNative: number = 0,
     soldNative: number = 0,
     userId?: number,
-    botUsername?: string
+    botUsername?: string,
+    tradeConfig?: any
   ): Promise<{ hasWallet: boolean; text: string; keyboard: any }> {
     // 1. 如果当前链钱包数为 0，1:1 模仿 PinkPunk 阻断并提示生成钱包
     if (wallets.length === 0) {
       const isZh = lang === 'zh-hans' || lang === 'zh-hant';
       const text = isZh ? '您当前关联了 0 个钱包(0/10)' : 'You have a total of 0 linked wallets(0/10)';
-      const keyboard = MainMenu.renderKeyboard([], lang);
+      const keyboard = MainMenu.renderKeyboard([], lang, chain);
       return { hasWallet: false, text, keyboard };
     }
 
@@ -160,16 +163,17 @@ export class TokenDetector {
 
     // 智能判定：是否为普通钱包地址 (而非代币合约)
     // 1) Sui / Aptos 链：Move 代币必含 '::'。不含 '::' 且 DexScreener 无流动池且符合 32 字节地址的为钱包地址
-    // 2) 其它公链：DexScreener 无流动池且无价格，且符合当前链专属钱包地址格式的，一律智能识别为钱包地址
+    // 2) 其它公链：必须链上明确确证为 EOA (isConfirmedEoa === true) 且无流动池，才识别为普通钱包地址！
     const isChainWallet = this.isValidWalletAddressForChain(chain, tokenAddress);
     const isSuiWallet = (chain.toLowerCase() === 'sui' || chain.toLowerCase() === 'aptos') &&
       !tokenAddress.includes('::') &&
       (!market.pairAddress || market.name === 'Unknown Token' || market.priceNative === 0) &&
       isChainWallet;
 
-    const isGeneralWallet = !market.pairAddress &&
-      market.name === 'Unknown Token' &&
-      market.priceNative === 0 &&
+    // 严禁未收录合约或 RPC 临时离线被误杀！只有当链上 RPC 成功返回且确证 code 为 0x 时才判定为 EOA 钱包
+    const isGeneralWallet = market.isConfirmedEoa === true &&
+      !market.pairAddress &&
+      !market.isContract &&
       isChainWallet;
 
     if (isSuiWallet || isGeneralWallet) {
@@ -177,6 +181,7 @@ export class TokenDetector {
       const chainName = MainMenu.getChainDisplayName(chain);
       const nativeSymbol = MainMenu.getChainNativeSymbol(chain);
       const explorerUrl = getChainAccountUrl(chain, tokenAddress);
+      const tokenKey = TokenKeyHelper.register(tokenAddress);
 
       const text = isZh
         ? `👛 <b>已识别钱包地址</b>\n\n` +
@@ -194,7 +199,9 @@ export class TokenDetector {
         .text(isZh ? `💸 向此地址转账 ${nativeSymbol}` : `💸 Transfer ${nativeSymbol}`, `transfer_to_${tokenAddress}`)
         .text(isZh ? `👥 开启跟单监控` : `👥 Copy Trade`, `copy_add_${tokenAddress}`)
         .row()
+        .text(isZh ? `🪙 作为代币交易 (强制)` : `🪙 Trade as Token`, `trade_force_${tokenKey}`)
         .url(isZh ? `🔍 区块链浏览器` : `🔍 Explorer`, explorerUrl)
+        .row()
         .text(isZh ? `🔙 返回主菜单` : `🔙 Return`, 'menu_main');
 
       return { hasWallet: true, text, keyboard };
@@ -224,6 +231,10 @@ export class TokenDetector {
       }
     }
 
+    const currentHoldingNative = (userHolding > 0 && currentPriceNative > 0)
+      ? userHolding * currentPriceNative
+      : userHoldingNative;
+
     const text = TradeMenu.renderText({
       market,
       chain,
@@ -231,7 +242,7 @@ export class TokenDetector {
       walletAddress: activeWallet.address,
       walletBalance: activeWallet.balance !== undefined ? activeWallet.balance : 0,
       userHolding,
-      userHoldingNative,
+      userHoldingNative: currentHoldingNative,
       pnlNative,
       pnlPct,
       lang,
@@ -239,7 +250,7 @@ export class TokenDetector {
       botUsername
     });
 
-    const keyboard = TradeMenu.renderKeyboard(chain, tokenAddress, lang);
+    const keyboard = TradeMenu.renderKeyboard(chain, tokenAddress, lang, tradeConfig);
     return { hasWallet: true, text, keyboard };
   }
 }

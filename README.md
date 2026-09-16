@@ -385,3 +385,12 @@ Contributions, issues, and feature proposals are warmly welcome! Please feel fre
 ## 📄 License
 
 This project is open-sourced under the [MIT License](./LICENSE).
+
+
+## Protocol Fee / 开源维护分成（开发中）
+
+本开源项目默认包含 0.6% 的开发者生态维护税（Protocol Fee），用于支持白猫项目的开源开发与节点基础设施维护。使用者可在 `.env` 中通过 `PROTOCOL_FEE_RATE=0` 自主调零或修改为你自己的钱包地址。
+
+**上述为完整功能的目标说明。当前代码已完成 EVM（BNB/ETH/Base）、Solana（SOL）和 Sui 原生资产的分成切分逻辑与单元测试回归（31/31 测试通过），TON 交易仍保持安全禁用。生产环境上线前仍需配置开发者冷钱包收款地址并由使用者确认链上结算模式。** 收款地址配置详见 `.env.example`，部署注意事项请参阅 [部署说明](DEPLOYMENT.md) 和 [接续文档](PROTOCOL_FEE_HANDOFF.md)。
+
+Fee arithmetic uses integer base units; the default configured rate is 0.006 (0.6%), capped at 0.020 (2%). Set `PROTOCOL_FEE_RATE=0` to disable. No developer recipient addresses are fabricated. Main-menu and referral-detail GitHub buttons link to [the official source repository](https://github.com/ChiSonKon/whitecat-trading-bot).

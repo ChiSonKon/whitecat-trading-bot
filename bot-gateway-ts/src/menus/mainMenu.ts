@@ -1,11 +1,14 @@
+import { GITHUB_URL, githubLabel } from '../ui/openSource.js';
 import { InlineKeyboard, Keyboard } from 'grammy';
 import { WalletEntry } from './walletMenu.js';
 import { I18nService } from '../services/i18nService.js';
+import { ButtonIcons, E, createStyledBtn, stripEmojis } from '../ui/emojis.js';
 
 export class MainMenu {
   public static getChainDisplayName(chain: string): string {
     const map: Record<string, string> = {
       robinhood: 'Robinhood',
+      arc: 'Arc Network',
       bsc: 'BSC',
       solana: 'Solana',
       base: 'Base',
@@ -22,6 +25,7 @@ export class MainMenu {
   public static getChainNativeSymbol(chain: string): string {
     const map: Record<string, string> = {
       robinhood: 'ETH',
+      arc: 'USDC',
       bsc: 'BNB',
       solana: 'SOL',
       base: 'ETH',
@@ -48,8 +52,27 @@ export class MainMenu {
     if (count === 0) {
       const zeroText = I18nService.getMainZeroWallets(lang);
       return (
-        `${currentChainLine}\n\n` +
-        `${zeroText}\n\n\n` +
+        `${E.WHITECAT} <b>WhiteCat Trading Bot</b>
+
+` +
+        `${currentChainLine}
+
+` +
+        `<pre>
+` +
+        `┌─────────────────────────────────┐
+` +
+        `│ 💳 关联钱包: 0 个 (0/10)        │
+` +
+        `│ 🌐 当前公链: ${chainName.padEnd(17)}  │
+` +
+        `└─────────────────────────────────┘
+` +
+        `</pre>
+` +
+        `${zeroText}
+
+` +
         `${reminder}`
       );
     }
@@ -57,75 +80,131 @@ export class MainMenu {
     const activeWallet = wallets.find(w => w.isDefault) || wallets[0];
     const balStr = activeWallet.balance !== undefined ? activeWallet.balance : 0;
     return (
-      `${currentChainLine}\n\n` +
-      `Wallet_${activeWallet.index + 1}: ${balStr} ${activeWallet.symbol} \n` +
-      `<code>${activeWallet.address}</code>\n\n\n` +
+      `${E.WHITECAT} <b>WhiteCat Trading Bot</b> ｜ ${E.GLOBE} <b>${chainName}</b>
+
+` +
+      `<pre>
+` +
+      `┌─────────────────────────────────┐
+` +
+      `│ 💳 活跃钱包: Wallet_${activeWallet.index + 1}
+` +
+      `│ 💰 账户余额: ${balStr} ${activeWallet.symbol}
+` +
+      `│ 🌐 所在网络: ${chainName}
+` +
+      `└─────────────────────────────────┘
+` +
+      `</pre>
+` +
+      `<code>${activeWallet.address}</code>
+
+` +
       `${reminder}`
     );
   }
 
-  public static renderKeyboard(wallets: WalletEntry[], lang: string = 'en'): InlineKeyboard {
-    const kb = new InlineKeyboard();
+  public static renderKeyboard(wallets: WalletEntry[], lang: string = 'en', chain: string = 'bsc'): InlineKeyboard {
     const count = wallets.length;
     const langLabel = this.getLangButtonLabel(lang);
+    const isZh = lang === 'zh-hans' || lang === 'zh-hant';
+    const isArc = chain.toLowerCase() === 'arc';
+    const chainName = this.getChainDisplayName(chain);
 
-    // 1. 零钱包状态 (1:1 对齐 PinkPunk 0 钱包状态)
+    const guideBtnText = isArc
+      ? (isZh ? '🌐 ARC 跨链指引' : '🌐 ARC Bridge Guide')
+      : (isZh ? `🌐 ${chainName} 生态与内盘指引` : `🌐 ${chainName} Ecosystem Guide`);
+
+    const chainGuideBtn = [
+      [
+        createStyledBtn(guideBtnText, {
+          callback_data: isArc ? 'menu_arc_guide' : `menu_chain_guide_${chain.toLowerCase()}`,
+          style: 'primary',
+          icon_custom_emoji_id: ButtonIcons.GLOBE
+        })
+      ]
+    ];
+
+    // 1. 零钱包状态
     if (count === 0) {
-      kb.text(I18nService.btnCreateWallet(lang), 'create_wallet')
-        .text(I18nService.btnImportWallet(lang), 'import_wallet')
-        .row()
-        .text(langLabel, 'lang')
-        .row()
-        .text(I18nService.btnSwitchChain(lang), 'chain_change')
-        .row()
-        .text(I18nService.btnMcp(lang), 'menu_mcp')
-        .text(I18nService.btnRadar(lang), 'menu_radar');
-      return kb;
+      return InlineKeyboard.from([
+        [createStyledBtn(githubLabel(lang), { url: GITHUB_URL, icon_custom_emoji_id: ButtonIcons.STAR })],
+        [
+          createStyledBtn(I18nService.btnCreateWallet(lang), { callback_data: 'create_wallet', style: 'success', icon_custom_emoji_id: ButtonIcons.PLUS }),
+          createStyledBtn(I18nService.btnImportWallet(lang), { callback_data: 'import_wallet', style: 'primary', icon_custom_emoji_id: ButtonIcons.FOLDER })
+        ],
+        ...chainGuideBtn,
+        [
+          createStyledBtn(langLabel, { callback_data: 'lang', style: 'primary', icon_custom_emoji_id: ButtonIcons.GLOBE })
+        ],
+        [
+          createStyledBtn(I18nService.btnSwitchChain(lang), { callback_data: 'chain_change', style: 'primary', icon_custom_emoji_id: ButtonIcons.REFRESH })
+        ],
+        [
+          createStyledBtn(I18nService.btnMcp(lang), { callback_data: 'menu_mcp', style: 'primary', icon_custom_emoji_id: ButtonIcons.ROBOT }),
+          createStyledBtn(I18nService.btnRadar(lang), { callback_data: 'menu_radar', style: 'danger', icon_custom_emoji_id: ButtonIcons.FIRE })
+        ]
+      ]);
     }
 
-    // 2. 已有钱包状态 (1:1 对齐 PinkPunk 主菜单矩阵)
-    // Row 1: Buy/Sell & Limit Order
-    kb.text(I18nService.btnBuySell(lang), 'buy_sell')
-      .text(I18nService.btnLimitOrder(lang), 'limit_order_list')
-      .row()
-      // Row 2: Sniper & Copy Trade
-      .text(I18nService.btnSniper(lang), 'sniper_token')
-      .text(I18nService.btnCopyTrade(lang), 'copy_trade')
-      .row()
-      // Row 3: Asset & Wallet
-      .text(I18nService.btnAsset(lang), 'asset')
-      .text(I18nService.btnWallet(lang), 'setting')
-      .row()
-      // Row 4: Trade Setting & Referral Reward
-      .text(I18nService.btnTradeSetting(lang), 'trade_setting')
-      .text(I18nService.btnReferral(lang), 'referral')
-      .row()
-      // Row 5: Language & Switch Chain
-      .text(langLabel, 'lang')
-      .text(I18nService.btnSwitchChain(lang), 'chain_change')
-      .row()
-      // Row 6: 🤖 MCP 智能体接入 & 🔥 爆点雷达
-      .text(I18nService.btnMcp(lang), 'menu_mcp')
-      .text(I18nService.btnRadar(lang), 'menu_radar')
-      .row()
-      // Row 7: 监听群发 (@wchjbot)
-      .url(I18nService.btnMonitorBroadcast(lang), 'https://t.me/wchjbot')
-      .row()
-      // Row 8: TG机器人开发 / 群发引流 / Web3技术支持 (https://t.me/biqrxnxiYW/667)
-      .url(I18nService.btnDevTechSupport(lang), 'https://t.me/biqrxnxiYW/667');
-
-    return kb;
+    // 2. 已有钱包状态 (按最新 TG 机器人色彩与高级图标规范布局，彻底杜绝 Emoji 重叠)
+    return InlineKeyboard.from([
+      [
+        createStyledBtn(I18nService.btnBuySell(lang), { callback_data: 'buy_sell', style: 'success', icon_custom_emoji_id: ButtonIcons.LIGHTNING }),
+        createStyledBtn(I18nService.btnLimitOrder(lang), { callback_data: 'limit_order_list', style: 'primary', icon_custom_emoji_id: ButtonIcons.LIMIT_ORDER })
+      ],
+      [
+        createStyledBtn(I18nService.btnSniper(lang), { callback_data: 'sniper_token', style: 'success', icon_custom_emoji_id: ButtonIcons.TARGET }),
+        createStyledBtn(I18nService.btnCopyTrade(lang), { callback_data: 'copy_trade', style: 'primary', icon_custom_emoji_id: ButtonIcons.GROUP })
+      ],
+      [
+        createStyledBtn(I18nService.btnAsset(lang), { callback_data: 'asset', style: 'primary', icon_custom_emoji_id: ButtonIcons.DIAMOND }),
+        createStyledBtn(I18nService.btnWallet(lang), { callback_data: 'setting', style: 'primary', icon_custom_emoji_id: ButtonIcons.CARD })
+      ],
+      ...chainGuideBtn,
+      [
+        createStyledBtn(I18nService.btnTradeSetting(lang), { callback_data: 'trade_setting', style: 'primary', icon_custom_emoji_id: ButtonIcons.GEAR }),
+        createStyledBtn(githubLabel(lang), { url: GITHUB_URL, icon_custom_emoji_id: ButtonIcons.STAR })
+      ],
+      [
+        createStyledBtn(langLabel, { callback_data: 'lang', style: 'primary', icon_custom_emoji_id: ButtonIcons.GLOBE }),
+        createStyledBtn(I18nService.btnSwitchChain(lang), { callback_data: 'chain_change', style: 'primary', icon_custom_emoji_id: ButtonIcons.REFRESH })
+      ],
+      [
+        createStyledBtn(I18nService.btnMcp(lang), { callback_data: 'menu_mcp', style: 'primary', icon_custom_emoji_id: ButtonIcons.ROBOT }),
+        createStyledBtn(I18nService.btnRadar(lang), { callback_data: 'menu_radar', style: 'danger', icon_custom_emoji_id: ButtonIcons.FIRE })
+      ],
+      [
+        createStyledBtn(I18nService.btnMonitorBroadcast(lang), { url: 'https://t.me/wchjbot', icon_custom_emoji_id: ButtonIcons.ANNOUNCE })
+      ],
+      [
+        createStyledBtn(I18nService.btnDevTechSupport(lang), { url: 'https://t.me/biqrxnxiYW/667', icon_custom_emoji_id: ButtonIcons.WHITECAT })
+      ]
+    ]);
   }
 
   /**
-   * 构造底部常驻回复键盘 (ReplyKeyboardMarkup) - 三个并排按键
-   * [ 🚀 打开主菜单 | 📊 资产持仓 | 💳 钱包设置 ]
+   * 构造底部常驻回复键盘 (ReplyKeyboardMarkup)
+   * 遵循 Telegram 最新彩色与自定义图标规范，文本前缀原生 Emoji 全部自动过滤
    */
   public static getBottomKeyboard(lang: string = 'en'): Keyboard {
-    return new Keyboard()
-      .text(I18nService.btnDockMainMenu(lang))
-      .text(I18nService.btnDockAsset(lang))
-      .text(I18nService.btnDockWallet(lang))
+    const mainBtn = {
+      text: stripEmojis(I18nService.btnDockMainMenu(lang)),
+      style: 'primary' as const,
+      icon_custom_emoji_id: ButtonIcons.WHITECAT
+    };
+    const assetBtn = {
+      text: stripEmojis(I18nService.btnDockAsset(lang)),
+      style: 'success' as const,
+      icon_custom_emoji_id: ButtonIcons.DIAMOND
+    };
+    const walletBtn = {
+      text: stripEmojis(I18nService.btnDockWallet(lang)),
+      style: 'primary' as const,
+      icon_custom_emoji_id: ButtonIcons.CARD
+    };
+
+    return Keyboard.from([[mainBtn, assetBtn, walletBtn]])
       .resized()
       .persistent()
       .placeholder(I18nService.getDockPlaceholder(lang));

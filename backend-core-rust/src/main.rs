@@ -184,6 +184,10 @@ async fn honeypot_check_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<HoneypotCheckReq>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    // ARC-AUDIT P0: do not inspect ARC contracts on Ethereum or label them SAFE.
+    if payload.chain.eq_ignore_ascii_case("arc") {
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "ARC security verification is unavailable".to_string()));
+    }
     let rpc = if payload.chain.to_lowercase() == "robinhood" {
         &state.config.robinhood_rpc
     } else {
@@ -202,6 +206,9 @@ async fn honeypot_check_handler(
 async fn fast_buy_handler(
     Json(req): Json<executor::FastBuyRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    if req.chain.eq_ignore_ascii_case("arc") {
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "ARC execution is disabled pending release verification".to_string()));
+    }
     let res = executor::SwapExecutor::execute_fast_buy(req)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -211,6 +218,9 @@ async fn fast_buy_handler(
 async fn fast_sell_handler(
     Json(req): Json<executor::FastSellRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    if req.chain.eq_ignore_ascii_case("arc") {
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "ARC execution is disabled pending release verification".to_string()));
+    }
     let res = executor::SwapExecutor::execute_fast_sell(req)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
