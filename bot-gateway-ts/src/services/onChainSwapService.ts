@@ -88,7 +88,7 @@ const EVM_SPECS: Record<string, EvmChainSpec> = {
   arc: {
     chainId: 5042,
     symbol: 'USDC',
-    rpcUrls: ['https://niorfun.com/api/rpc', 'https://rpc.arc-scan.org'],
+    rpcUrls: ['https://rpc.mainnet.arc.io', 'https://rpc.arc-scan.org'],
     routerAddress: process.env.ARC_ROUTER_ADDRESS || '0x53bf6b0684ec7ef91e1387da3d1a1769bc5a6f77',
     wrappedNative: process.env.ARC_WRAPPED_NATIVE || '0x3600000000000000000000000000000000000000',
     factoryAddress: process.env.ARC_FACTORY_ADDRESS || '0xf0db7b58379503491d857dB50AC9ece64c653918',
@@ -294,6 +294,9 @@ export class OnChainSwapService {
       if (resp.data?.error) {
         throw new Error(resp.data.error.message || JSON.stringify(resp.data.error));
       }
+      if (method === 'eth_getTransactionReceipt' && (resp.data?.result === null || resp.data?.result === undefined)) {
+        throw new Error('Receipt not ready yet');
+      }
       return resp.data?.result;
     };
 
@@ -317,6 +320,9 @@ export class OnChainSwapService {
       const raceBatch = rpcs.slice(0, 3);
       return await Promise.any(raceBatch.map(url => executeSingle(url, 4000)));
     } catch (raceErr: any) {
+      if (method === 'eth_getTransactionReceipt') {
+        return null;
+      }
       // 若首批竞速均失败且存在更多节点，继续 fallback
       if (rpcs.length > 3) {
         let lastErr = null;
@@ -362,7 +368,7 @@ export class OnChainSwapService {
 
   public static async pollEvmReceipt(chain: string, txHash: string, maxWaitMs: number = 12000): Promise<{ status: 'SUCCESS' | 'FAILED' | 'PENDING'; gasUsed?: number }> {
     const pollStart = Date.now();
-    const pollInterval = 1200;
+    const pollInterval = (chain.toLowerCase() === 'arc' || chain.toLowerCase() === 'base') ? 500 : 1000;
     while (Date.now() - pollStart < maxWaitMs) {
       await new Promise(r => setTimeout(r, pollInterval));
       try {

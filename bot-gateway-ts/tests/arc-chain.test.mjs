@@ -45,7 +45,7 @@ test('ARC Chain: wallet balance queries formatted with standard EVM 18-decimal U
 
   const origPost = ChainBalanceService.httpClient.post;
   ChainBalanceService.httpClient.post = async (url, payload) => {
-    if (url.includes('arc-scan.org') || url.includes('niorfun.com')) {
+    if (url.includes('arc-scan.org') || url.includes('niorfun.com') || url.includes('arc.io')) {
       assert.equal(payload.method, 'eth_getBalance');
       return { data: { result: hexBalance100USDC } };
     }

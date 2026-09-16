@@ -1470,6 +1470,12 @@ bot.on('callback_query:data', async ctx => {
     const targetChain = resolveChainForToken(ca, user.activeChain);
     // 立即应答回调提示正在刷新，解除前端按钮等待
     await ctx.answerCallbackQuery({ text: I18nService.t('msg.refreshingLive', user.lang) }).catch(() => {});
+    const targetWallets = getUserWallets(user, targetChain);
+    const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
+    if (targetWallet) {
+      ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
+    }
+    TokenMarketService.invalidateCache(ca, targetChain);
     // 并发请求余额、持仓与市场数据，大幅缩短刷新耗时
     const [, , market] = await Promise.all([
       syncWalletBalances(user, targetChain),
@@ -1482,8 +1488,6 @@ bot.on('callback_query:data', async ctx => {
     const userHoldingNative = holdingObj ? holdingObj.costNative : 0;
     const boughtNative = holdingObj?.totalBoughtNative ?? userHoldingNative;
     const soldNative = holdingObj?.totalSoldNative ?? 0;
-    const targetWallets = getUserWallets(user, targetChain);
-    const targetWallet = targetWallets.find(w => w.isDefault) || targetWallets[0];
 
     let currentPriceNative = market.priceNative > 0 ? market.priceNative : 0;
     if (currentPriceNative <= 0 && market.priceUsd > 0 && market.nativePriceUsd > 0) {
@@ -1668,7 +1672,7 @@ bot.on('callback_query:data', async ctx => {
     ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
     if (result.isRealOnChain) {
       targetWallet.balance = parseFloat(Math.max((targetWallet.balance || 0) - buyAmount, 0).toFixed(4));
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 800));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
     } else {
@@ -1877,7 +1881,7 @@ bot.on('callback_query:data', async ctx => {
       if (targetWallet && result.estimatedAmountOut > 0) {
         targetWallet.balance = parseFloat(((targetWallet.balance || 0) + result.estimatedAmountOut).toFixed(4));
       }
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 800));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
     } else {
@@ -2371,7 +2375,7 @@ bot.on('message:text', async ctx => {
     ChainBalanceService.invalidateCache(targetChain, targetWallet.address);
     if (result.isRealOnChain) {
       targetWallet.balance = parseFloat(Math.max((targetWallet.balance || 0) - amt, 0).toFixed(4));
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 800));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
     } else {
@@ -2492,7 +2496,7 @@ bot.on('message:text', async ctx => {
       if (targetWallet && result.estimatedAmountOut > 0) {
         targetWallet.balance = parseFloat(((targetWallet.balance || 0) + result.estimatedAmountOut).toFixed(4));
       }
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 800));
       await syncWalletBalances(user, targetChain);
       await syncTokenHoldings(user, targetChain, tokenAddress);
     } else {

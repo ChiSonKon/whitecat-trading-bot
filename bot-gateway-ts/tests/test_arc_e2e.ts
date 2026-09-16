@@ -91,7 +91,7 @@ async function runE2ETests() {
   try {
     // 250.50 USDC = 250.5 * 10^18 = 250500000000000000000n base units
     ChainBalanceService.httpClient.post = async (url: string, payload: any) => {
-      if (url.includes('arc-scan.org') || url.includes('niorfun.com')) {
+      if (url.includes('arc-scan.org') || url.includes('niorfun.com') || url.includes('arc.io')) {
         assert(payload.method === 'eth_getBalance', 'RPC 方法为 eth_getBalance');
         return { data: { result: '0x' + (250500000000000000000n).toString(16) } } as any;
       }

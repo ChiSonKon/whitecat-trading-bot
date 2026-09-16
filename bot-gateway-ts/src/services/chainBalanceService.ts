@@ -182,7 +182,7 @@ export class ChainBalanceService {
     const rpcMap: Record<string, string[]> = {
       bsc: ['https://bsc-dataseed.binance.org', 'https://binance.llamarpc.com', 'https://bsc-dataseed1.defibit.io'],
       robinhood: ['https://rpc.mainnet.chain.robinhood.com'],
-      arc: ['https://niorfun.com/api/rpc', 'https://rpc.arc-scan.org'],
+      arc: ['https://rpc.mainnet.arc.io', 'https://rpc.arc-scan.org'],
       base: ['https://mainnet.base.org', 'https://base.llamarpc.com', 'https://1rpc.io/base'],
       ethereum: ['https://eth.llamarpc.com', 'https://cloudflare-eth.com', 'https://1rpc.io/eth'],
       xlayer: ['https://rpc.xlayer.tech'],
